@@ -1,0 +1,1 @@
+export default AdminInfo = "SoundWeb Control v1.0 2022 © Samuel Simpson, All rights reserved"

@@ -1,0 +1,11 @@
+import Link from "next/link"
+import redirect from 'nextjs-redirect'
+
+function PanelContents(props) {
+
+  return (
+    <h2>The panel file has not been generated yet, please read the README.md to get started</h2>
+  );
+}
+
+export default PanelContents;

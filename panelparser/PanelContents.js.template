@@ -1,0 +1,65 @@
+import Link from "next/link"
+import redirect from 'nextjs-redirect'
+
+import { TabHead, TabBody, ControlWrapper } from "./styles"
+import SegMeter from "./components/SegMeter"
+import TabBackground from "./components/TabBackground"
+import Fader from "./components/Fader"
+import Label from "./components/Label"
+import ComboBox from "./components/ComboBox"
+import ParameterLabel from "./components/ParameterLabel"
+import Button from "./components/Button"
+import LED from "./components/LED"
+import Rectangle from "./components/Rectangle"
+import TabButton from "./components/TabButton"
+import TabContainer from "./components/TabContainer"
+
+function getSubtab(subtab, depth) {
+  if (subtab.length > depth) {
+    return subtab[depth];
+  }
+  return 0;
+}
+
+export const tab_count = [TAB_COUNT];
+
+function PanelContents(props) {
+  const { query: { tab }, pathname, setSubtab, subtab, hiddenTabs } = props;
+  var home_tab = 0;
+  for (home_tab = 0; home_tab < tab_count; home_tab++) {
+    if (!(hiddenTabs && hiddenTabs.includes(String(home_tab)))) {
+      break;
+    }
+  }
+
+  const selected_tab = tab == null ? String(home_tab) : tab;
+
+  // Redirect to panel home if invalid tab
+  if (parseInt(selected_tab).toString() !== selected_tab ||
+    ((parseInt(selected_tab) >= tab_count ||
+        (hiddenTabs && hiddenTabs.includes(selected_tab)) 
+      && home_tab !== tab_count))) {
+    const Redirect = redirect(pathname);
+    return (
+      <Redirect>
+        <div style={{
+          padding: "2em",
+          fontSize: 20
+        }}>
+          Redirecting to&nbsp;
+          <Link href={{ pathname: pathname }}>
+            <a>Home Tab</a>
+          </Link>...
+        </div>
+      </Redirect>
+    )
+  }
+
+  return (
+    <ControlWrapper style={{display: "inline-block"}}>
+[PANEL_JSX]
+    </ControlWrapper>
+  );
+}
+
+export default PanelContents;

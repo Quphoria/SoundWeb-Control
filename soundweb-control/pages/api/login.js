@@ -1,0 +1,31 @@
+import { withSessionRoute } from "../../lib/withSession";
+import { userDatabase, sanitised } from "../../lib/userDatabase";
+
+export default withSessionRoute(
+  async function loginRoute(req, res) {
+    const ip = req.headers["x-real-ip"] || req.connection.remoteAddress;
+    const { username, password } = await req.body;
+
+    try {
+      userDatabase.load();
+      // get user from database then:
+      const user = userDatabase.find(x => x.username.toLowerCase() == username.toLowerCase() && x.password == password);
+
+      if (user === undefined) {
+        throw { message: "Incorrect username or password" }
+      }
+      if (user.disabled) {
+        throw { message: "User account disabled" }
+      }
+      userDatabase.update(user.id, { lastLogin: new Date().toISOString() });
+
+      console.log(`${user.username}#${user.id} logged in from ${ip}`);
+      req.session.user = user;
+      await req.session.save();
+      res.send({ ok: true, user: {isLoggedIn: true, ...sanitised(user)} });
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({ error: true,  message: error.message });
+    }
+  }
+);
