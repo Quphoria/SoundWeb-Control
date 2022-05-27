@@ -122,7 +122,6 @@ class WebSocket {
   sendMessage(message) {
     if (this.ws) {
       this.ws.send(message);
-      console.log("WS State:", this.ws?.readyState);
       return true;
     }
     return false;
