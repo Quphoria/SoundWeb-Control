@@ -90,6 +90,9 @@ class WebSocket {
       this.setupWebsocket("__test__");
     } else {
       fetch("/api/auth_token", {method: 'POST'}).then(res => res.json()).then(auth => {
+        if (auth === null) {
+          throw "null";
+        }
         this.setupWebsocket(JSON.stringify(auth));
       }).catch(error => {
         console.error("Failed to get websocket auth token:", error);

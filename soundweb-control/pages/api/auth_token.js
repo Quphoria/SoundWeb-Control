@@ -7,7 +7,7 @@ export default withSessionRoute(
     const ip = req.headers["x-real-ip"] || req.connection.remoteAddress;
     const user = req.session.user;
     if (user === undefined) {
-      res.send({isLoggedIn: false});
+      res.send(null);
       return;
     }
     userDatabase.load();
@@ -21,7 +21,7 @@ export default withSessionRoute(
     if (!db_user) {
       console.log(`${user.username}#${user.id} invalid session from ${ip}`);
       await req.session.destroy();
-      res.send({});
+      res.send(null);
       return;
     }
     res.send(createAuthToken(db_user.username));
