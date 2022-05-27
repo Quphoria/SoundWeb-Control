@@ -144,7 +144,7 @@ async def main():
     for t in soundweb_subscribe_threads.values():
         t.start()
     print(f"Websocket server listening on ws://0.0.0.0:{config['websocket_port']}")
-    async with websockets.serve(msg_handler, "0.0.0.0", config["websocket_port"], ping):
+    async with websockets.serve(msg_handler, "0.0.0.0", config["websocket_port"]):
         for node in config["nodes"]:
             asyncio.create_task(resp_broadcast(node))
         await asyncio.Future()  # run forever
