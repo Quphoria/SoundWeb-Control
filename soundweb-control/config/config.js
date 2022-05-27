@@ -10,7 +10,9 @@ const defaultConfig = `{
   // This is the address and port of the soundweb websocket bridge
   "soundwebBridgeWebsocket": "ws://192.168.1.2:8765",
   // Enable this if ssl is being used (don't enable if http is being used)
-  "useSSL": false
+  "useSSL": false,
+  // Auth Token Secret, generate another 100 character password
+  "authTokenSecret": "different_password_at_least_32_characters_long"
 }`;
 
 var config = {};
@@ -19,7 +21,7 @@ try {
   const jsonString = fs.readFileSync(filename, "utf8");
   config = jsonc.parse(jsonString);
   if (typeof(config.sessionPassword) !== "string" || config.sessionPassword.length < 32) {
-    throw "sessionPassword must be a secret AND SECURE 32 character string";
+    throw "sessionPassword must be a secret AND SECURE 32+ character string";
   }
   if (config.sessionPassword === "complex_password_at_least_32_characters_long" && process.env.NODE_ENV === "production") {
     console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
@@ -32,6 +34,15 @@ try {
   }
   if (typeof(config.useSSL) !== "boolean") {
     throw "Missing useSSL";
+  }
+  if (typeof(config.authTokenSecret) !== "string" || config.authTokenSecret.length < 32) {
+    throw "authTokenSecret must be a secret AND SECURE 32+ character string";
+  }
+  if (config.authTokenSecret === "different_password_at_least_32_characters_long" && process.env.NODE_ENV === "production") {
+    console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    console.log("!!! authTokenSecret has not been changed from the default value, please edit config.jsonc !!!")
+    console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    throw "authTokenSecret is insecure"
   }
 } catch (err) {
   console.log("Error loading config:", err);

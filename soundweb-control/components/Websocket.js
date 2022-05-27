@@ -20,7 +20,7 @@ class WebSocket {
 
   testInterval() {
     if (!this.test_ok) {
-      this.ws.close(1008, "Ping test failed");
+      this.ws.close(1000, "Ping test failed");
     } else {
       this.sendMessage("__test__");
       this.test_ok = false;
@@ -34,7 +34,7 @@ class WebSocket {
     return Math.min(30, Math.pow(2, k) - 1) * 1000;
   }
 
-  connect() {
+  setupWebsocket(auth_token) {
     let websocket = new W3CWebSocket(this.props.url);
     this.ws = websocket;
     if (this.ws_test) {
@@ -44,9 +44,10 @@ class WebSocket {
 
     websocket.onopen = () => {
       this.logging('Websocket connected...');
-      if (typeof this.props.onOpen === 'function') this.props.onOpen();
       this.test_ok = false;
-      this.sendMessage("__test__");
+      this.sendMessage(auth_token);
+
+      if (typeof this.props.onOpen === 'function') this.props.onOpen();
       setInterval(this.testInterval.bind(this), 2000) // Check websocket every 2 seconds
     };
 
@@ -81,6 +82,26 @@ class WebSocket {
         }, time);
       }
     };
+  }
+
+  connect() {
+    // Websocket auth
+    if (!this.props.use_auth) {
+      this.setupWebsocket("__test__");
+    } else {
+      fetch("/api/auth_token", {method: 'POST'}).then(res => res.json()).then(auth => {
+        this.setupWebsocket(JSON.stringify(auth));
+      }).catch(error => {
+        console.error("Failed to get websocket auth token:", error);
+        if (this.shouldReconnect) {
+          let time = this.generateInterval(this.attempts);
+          this.timeoutID = setTimeout(() => {
+            this.attempts++;
+            this.connect();
+          }, time);
+        }
+      });
+    }
   }
 
   close() {

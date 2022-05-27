@@ -1,10 +1,12 @@
 import asyncio, websockets
 from janus import Queue
-import json
+import json, hmac, hashlib, time
 from config import load_config
 
 from soundweb_proto import MessageType, Packet, meter_value_db, decode_packets, DecodeFailed
 from soundweb_client import SoundWebThread
+
+token_time_range = 10 * 60 * 1000 # +-10 minutes
 
 subscribed_params = {}
 
@@ -40,15 +42,53 @@ def get_packet_node_handler(p: Packet) -> str:
         return hex(p.node)
     return "default"
 
+previous_tokens = {}
+
+def check_auth_token_hmac(message: str):
+    global previous_tokens
+    t = round(time.time() * 1000)
+    # remove tokens older than the oldest allowed time (+1 second for safe overlap)
+    for tkn_time in previous_tokens.keys():
+        if tkn_time + 1000 + token_time_range < t:
+            previous_tokens.pop(tkn_time, None)
+
+    try:
+        token = json.loads(message)
+        h = hmac.new(config["authTokenSecret"].encode("ascii"), token["data"].encode(), hashlib.sha256).hexdigest()
+        if hmac.compare_digest(h, token["hash"]):
+            # hmac valid
+            data = json.loads(token["data"])
+            username = data["username"]
+            token_time = data["time"]
+            assert type(username) == str, "Username not a string"
+            assert type(token_time) == int, "Token time not an int"
+            if abs(t - token_time) < token_time_range:
+                print(f"HMAC verified for {username}")
+                previous_tokens[t] = h
+                return True
+    except Exception as ex:
+        # print(ex)
+        # hmac failed
+        # ignore error
+        pass
+    return False
+
 async def msg_handler(websocket):
     print("Websocket Connection:", websocket.remote_address)
-    for p in param_cache.values():
-        await websocket.send(p)
-    WEBSOCKET_LIST.append(websocket)
     try:
+        first_message = True
         async for message in websocket:
             # print("WS MSG:", message)
-            if message == "__test__":
+            if first_message:
+                # break out of loop if auth token invalid
+                if not check_auth_token_hmac(message):
+                    await websocket.close()
+                    break
+                for p in param_cache.values():
+                    await websocket.send(p)
+                WEBSOCKET_LIST.append(websocket)
+                first_message = False
+            elif message == "__test__":
                 await websocket.send("__test__")
             else:
                 try:

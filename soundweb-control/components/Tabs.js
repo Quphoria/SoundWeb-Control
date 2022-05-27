@@ -60,6 +60,7 @@ class Tabs extends React.Component {
       }).bind(this),
       reconnect: true,
       debug: true,
+      use_auth: true,
       reconnectIntervalInMilliSeconds: 5000 // Auto reconnect after 5 seconds
     });
     this.websocket.connect();

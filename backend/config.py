@@ -5,7 +5,8 @@ def default_config() -> Dict[str, Any]:
     return {
         "nodes": {"default": "192.168.1.2"},
         "subscription_rate_ms": 25,
-        "websocket_port": 8765
+        "websocket_port": 8765,
+        "authTokenSecret": "different_password_at_least_32_characters_long"
     }
 
 def check_list_type(l: list, v_type) -> bool:
@@ -40,6 +41,10 @@ def load_config(config_filename: str = "config.json", disable_save = False) -> d
     if "nodes" not in config or not check_dict_type(config["nodes"], str, str) or not "default" in config["nodes"]:
         invalid_message("nodes")
         config["nodes"] = default_config()["nodes"]
+        save_config = True
+    if "authTokenSecret" not in config or not isinstance(config["authTokenSecret"], str):
+        invalid_message("authTokenSecret")
+        config["authTokenSecret"] = default_config()["authTokenSecret"]
         save_config = True
     if save_config and not disable_save:
         print(f"Modified config saved as {config_filename}")
