@@ -48,7 +48,7 @@ def check_auth_token_hmac(message: str):
     global previous_tokens
     t = round(time.time() * 1000)
     # remove tokens older than the oldest allowed time (+1 second for safe overlap)
-    for tkn_time in previous_tokens.keys():
+    for tkn_time in list(previous_tokens.keys()):
         if tkn_time + 1000 + token_time_range < t:
             previous_tokens.pop(tkn_time, None)
 
@@ -144,7 +144,7 @@ async def main():
     for t in soundweb_subscribe_threads.values():
         t.start()
     print(f"Websocket server listening on ws://0.0.0.0:{config['websocket_port']}")
-    async with websockets.serve(msg_handler, "0.0.0.0", config["websocket_port"]):
+    async with websockets.serve(msg_handler, "0.0.0.0", config["websocket_port"], ping):
         for node in config["nodes"]:
             asyncio.create_task(resp_broadcast(node))
         await asyncio.Future()  # run forever
