@@ -2,6 +2,7 @@ import asyncio, websockets
 from janus import Queue
 import json, hmac, hashlib, time
 from config import load_config
+from concurrent.futures import ThreadPoolExecutor
 
 from soundweb_proto import MessageType, Packet, meter_value_db, decode_packets, DecodeFailed
 from soundweb_client import SoundWebThread
@@ -73,6 +74,8 @@ def check_auth_token_hmac(message: str):
         pass
     return False
 
+process_pool = ThreadPoolExecutor(2)
+
 async def msg_handler(websocket):
     print("Websocket Connection:", websocket.remote_address)
     try:
@@ -81,9 +84,14 @@ async def msg_handler(websocket):
             # print("WS MSG:", message)
             if first_message:
                 # break out of loop if auth token invalid
-                if not check_auth_token_hmac(message):
+                # run check_auth_token_hmac in executor to prevent hanging the main thread with hmac calculations
+                loop = asyncio.get_event_loop()
+                auth_valid = await loop.run_in_executor(process_pool, check_auth_token_hmac, message)
+                if not auth_valid:
                     await websocket.close()
                     break
+                # send __test__ to acknowledge websocket auth
+                await websocket.send("__test__")
                 for p in param_cache.values():
                     await websocket.send(p)
                 WEBSOCKET_LIST.append(websocket)
