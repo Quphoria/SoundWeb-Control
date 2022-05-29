@@ -2,7 +2,7 @@ version: '3'
 
 services:
   soundweb-control:
-    image: soundweb-control
+    image: quphoria/soundweb-control
     ports:
       - "3000:3000/tcp"
     volumes:
@@ -15,7 +15,7 @@ services:
     restart: unless-stopped
 
   hiqnet-websocket-proxy:
-    image: hiqnet-websocket-proxy
+    image: quphoria/hiqnet-websocket-proxy
     ports:
       - "8765:8765/tcp"
     volumes:
