@@ -1,0 +1,28 @@
+version: '3'
+
+services:
+  soundweb-control:
+    image: soundweb-control
+    ports:
+      - "3000:3000/tcp"
+    volumes:
+      - ./data:/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "1"
+    restart: unless-stopped
+
+  hiqnet-websocket-proxy:
+    image: hiqnet-websocket-proxy
+    ports:
+      - "8765:8765/tcp"
+    volumes:
+      - ./data/backend:/app/config
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "1"
+    restart: unless-stopped

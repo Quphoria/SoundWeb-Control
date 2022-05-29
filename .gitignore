@@ -8,3 +8,4 @@ env
 users.json
 PanelContents.js
 config.jsonc
+/data/backend/config.json

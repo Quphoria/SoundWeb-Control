@@ -4,7 +4,7 @@ from typing import Dict, List, Any
 def default_config() -> Dict[str, Any]:
     return {
         "nodes": {"default": "192.168.1.2"},
-        "subscription_rate_ms": 25,
+        "subscription_rate_ms": 100,
         "websocket_port": 8765,
         "authTokenSecret": "different_password_at_least_32_characters_long"
     }

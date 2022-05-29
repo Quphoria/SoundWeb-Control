@@ -182,7 +182,7 @@ async def main():
 
 if __name__ == "__main__":
     update_health(False) # set healthy to false when starting
-    config = load_config("config.json")
+    config = load_config("config/config.json")
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
