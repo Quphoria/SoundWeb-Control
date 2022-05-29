@@ -20,7 +20,7 @@ class WebSocket {
 
   testInterval() {
     if (!this.test_ok) {
-      this.ws.close(1000, "Ping test failed");
+      this.ws.close(3000, "Ping test failed");
     } else {
       this.sendMessage("__test__");
       this.test_ok = false;
