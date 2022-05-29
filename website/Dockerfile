@@ -8,7 +8,7 @@ COPY ./ .
 
 WORKDIR /app/soundweb-control
 
-RUN npm install
+RUN npm install --force
 
 WORKDIR /app
 
