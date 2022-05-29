@@ -173,7 +173,7 @@ def decode_packets(msg: bytes):
             try:
                 packets.append(Packet.decode(pkt_msg))
             except InvalidChecksum as ex:
-                print(ex)
+                print(ex, flush=True)
             # clear packet so it doesn't get returned as remaining
             pkt_msg = b''
     return packets, pkt_msg # return remaining bytes

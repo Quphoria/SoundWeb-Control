@@ -29,7 +29,7 @@ async def resp_broadcast(node: str):
                 if websocket in WEBSOCKET_LIST:
                     WEBSOCKET_LIST.remove(websocket)
             except Exception as ex:
-                print("Broadcast Error: " + str(ex))
+                print("Broadcast Error: " + str(ex), flush=True)
                 try:
                     await websocket.close()
                 except:
@@ -64,11 +64,11 @@ def check_auth_token_hmac(message: str):
             assert type(username) == str, "Username not a string"
             assert type(token_time) == int, "Token time not an int"
             if abs(t - token_time) < token_time_range:
-                print(f"HMAC verified for {username}")
+                print(f"HMAC verified for {username}", flush=True)
                 previous_tokens[t] = h
                 return True
     except Exception as ex:
-        # print(ex)
+        # print(ex, flush=True)
         # hmac failed
         # ignore error
         pass
@@ -77,11 +77,11 @@ def check_auth_token_hmac(message: str):
 process_pool = ThreadPoolExecutor(2)
 
 async def msg_handler(websocket):
-    print("Websocket Connection:", websocket.remote_address)
+    print("Websocket Connection:", websocket.remote_address, flush=True)
     try:
         first_message = True
         async for message in websocket:
-            # print("WS MSG:", message)
+            # print("WS MSG:", message, flush=True)
             if first_message:
                 # break out of loop if auth token invalid
                 # run check_auth_token_hmac in executor to prevent hanging the main thread with hmac calculations
@@ -102,7 +102,7 @@ async def msg_handler(websocket):
                 try:
                     p = Packet.from_json(json.loads(message))
                     sub_handler_node = get_packet_node_handler(p)
-                    # print(p)
+                    # print(p, flush=True)
                     sent_value = False
                     if p.message_type == MessageType.SUBSCRIBE or p.message_type == MessageType.SUBSCRIBE_PERCENT:
                         p.value = config["subscription_rate_ms"]
@@ -124,7 +124,7 @@ async def msg_handler(websocket):
                     else:
                         await msg_queue.async_q.put(p)
                 except (json.JSONDecodeError, DecodeFailed) as ex:
-                    print("Failed to decode:", ex, ":", message)
+                    print("Failed to decode:", ex, ":", message, flush=True)
     except websockets.exceptions.ConnectionClosedError:
         pass
     try:
@@ -151,7 +151,7 @@ async def main():
     soundweb_thread.start()
     for t in soundweb_subscribe_threads.values():
         t.start()
-    print(f"Websocket server listening on ws://0.0.0.0:{config['websocket_port']}")
+    print(f"Websocket server listening on ws://0.0.0.0:{config['websocket_port']}", flush=True)
     async with websockets.serve(msg_handler, "0.0.0.0", config["websocket_port"]):
         for node in config["nodes"]:
             asyncio.create_task(resp_broadcast(node))

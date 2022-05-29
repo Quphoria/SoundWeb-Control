@@ -46,7 +46,7 @@ class SoundWebClientProtocol(asyncio.Protocol):
         while True:
             p = await self.get_next_message()
             if p:
-                # print("O", p)
+                # print("O", p, flush=True)
                 self.transport.write(p.encode())
 
     def connection_test_packet(self, transport):
@@ -54,7 +54,7 @@ class SoundWebClientProtocol(asyncio.Protocol):
         transport.write(b'\x02\xff\x03') 
 
     def connection_made(self, transport):
-        print(self.name, "Connected")
+        print(self.name, "Connected", flush=True)
         if self.subscribed_params:
             for p in self.subscribed_params:
                 transport.write(p.encode())
@@ -71,8 +71,8 @@ class SoundWebClientProtocol(asyncio.Protocol):
             return
         packets, self.read_buffer = decode_packets(self.read_buffer + data)
         for p in packets:
-            # print(p)
-            # print(p, meter_value_db(p.value))
+            # print(p, flush=True)
+            # print(p, meter_value_db(p.value), flush=True)
             if self.resp_queue.closed:
                 self.end_connection()
                 return
@@ -81,7 +81,7 @@ class SoundWebClientProtocol(asyncio.Protocol):
             self.resp_queue.put(p.to_json())
 
     def connection_lost(self, exc):
-        print(self.name, "Connection Error:", exc)
+        print(self.name, "Connection Error:", exc, flush=True)
         self.end_connection()
         self.loop.stop()
 
@@ -123,7 +123,7 @@ class SoundWebThread(threading.Thread):
         except asyncio.CancelledError:
             pass
     def run(self):
-        print(self.name, "started")
+        print(self.name, "started", flush=True)
         while not self.exitFlag:
             try:
                 loop = asyncio.new_event_loop()
@@ -133,11 +133,11 @@ class SoundWebThread(threading.Thread):
                 loop.stop()
                 loop.close()
             except Exception as ex:
-                print(self.name, "Error:", ex)
+                print(self.name, "Error:", ex, flush=True)
             if not self.exitFlag:
-                print(self.name, "Disconnected from SoundWeb, Reconnecting in 5 seconds")
+                print(self.name, "Disconnected from SoundWeb, Reconnecting in 5 seconds", flush=True)
                 for i in range(5):
                     if self.exitFlag:
                         break
                     time.sleep(1)
-        print(self.name, "exited")
+        print(self.name, "exited", flush=True)
