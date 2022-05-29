@@ -134,19 +134,41 @@ async def msg_handler(websocket):
     if websocket in WEBSOCKET_LIST:
         WEBSOCKET_LIST.remove(websocket)
 
+health_check_queue = None
+
+def update_health(healthy: bool):
+    with open("health.status", "w") as f:
+        if healthy:
+            f.write("0")
+        else:
+            f.write("1")
+
+async def health_check():
+    client_thread_status = {}
+    if health_check_queue is None:
+        return
+    while True:
+        # Get a "work item" out of the queue.
+        status = await health_check_queue.async_q.get()
+        client_thread_status[status["name"]] = status["status"]
+
+        healthy = all(s for s in client_thread_status.values())
+        update_health(healthy)
+    
 soundweb_thread = None
 soundweb_subscribe_threads = []
 async def main():
-    global config, msg_queue, resp_queues, subscribe_queues, soundweb_thread, soundweb_subscribe_threads, subscribed_params
+    global config, msg_queue, resp_queues, subscribe_queues, soundweb_thread, soundweb_subscribe_threads, subscribed_params, health_check_queue
     msg_queue = Queue(200)
+    health_check_queue = Queue(50)
     resp_queues = {key: Queue(200) for key in config["nodes"].keys()}
     subscribe_queues = {key: Queue(200) for key in config["nodes"].keys()}
     soundweb_ip = config["nodes"]["default"]
     subscribed_params = {key: list() for key in config["nodes"].keys()}
 
-    soundweb_thread = SoundWebThread("SoundWeb Message Thread", soundweb_ip, 1023, msg_queue, None, None)
+    soundweb_thread = SoundWebThread("SoundWeb Message Thread", soundweb_ip, 1023, msg_queue, None, None, health_check_queue)
     soundweb_subscribe_threads = {
-        key: SoundWebThread(f"SoundWeb {key} Sync Thread", ip, 1023, subscribe_queues[key], resp_queues[key], subscribed_params[key])
+        key: SoundWebThread(f"SoundWeb {key} Sync Thread", ip, 1023, subscribe_queues[key], resp_queues[key], subscribed_params[key], health_check_queue)
         for key, ip in config["nodes"].items()}
     soundweb_thread.start()
     for t in soundweb_subscribe_threads.values():
@@ -155,9 +177,11 @@ async def main():
     async with websockets.serve(msg_handler, "0.0.0.0", config["websocket_port"]):
         for node in config["nodes"]:
             asyncio.create_task(resp_broadcast(node))
+        asyncio.create_task(health_check())
         await asyncio.Future()  # run forever
 
 if __name__ == "__main__":
+    update_health(False) # set healthy to false when starting
     config = load_config("config.json")
     try:
         asyncio.run(main())
