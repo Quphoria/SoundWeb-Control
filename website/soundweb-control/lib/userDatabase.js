@@ -1,6 +1,6 @@
 const fs = require('fs');
 
-const filename = "users.json";
+const filename = ( process.env.DATA_DIR || "" ) + "users.json";
 var users = [];
 
 export const userDatabase = {

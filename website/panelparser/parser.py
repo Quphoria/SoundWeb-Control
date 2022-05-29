@@ -9,6 +9,8 @@ from builder import build_jsx
 
 images = {}
 
+output_dir = "output"
+
 def parse_images(ImageLibrarian):
     global images
     if not ImageLibrarian:
@@ -34,7 +36,7 @@ def parse_images(ImageLibrarian):
                 continue
             if not Image.text:
                 continue
-            image_path = "output/images/" + image_name
+            image_path = output_dir + "/images/" + image_name
             with open(image_path, "wb") as f:
                 f.write(base64.b64decode(Image.text))
             print("Written image:", image_path)
@@ -48,19 +50,21 @@ def parse_panel(filename: str):
     assert Panel != None, "Panel not found"
     title = Panel.attrib.get("Text", "Panel")
     # parse images
-    os.makedirs("output/images", exist_ok=True)
+    os.makedirs(output_dir + "/images", exist_ok=True)
     parse_images(Panels.find("ImageLibrarian"))
     # parse panel
     root_control = parse_root_control(images, Panel, 3, 2)
     pages = total_pages()
-    with open("panel.xml", "w", encoding="UTF-8") as f:
-        f.write(str(root_control))
-    build_jsx(root_control, pages)
+    # with open("panel.xml", "w", encoding="UTF-8") as f:
+    #     f.write(str(root_control))
+    build_jsx(root_control, pages, output_dir)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Converts audioarchitect .panel files to JSX for react')
     parser.add_argument('file', help='The .panel file to open')
+    parser.add_argument('-output_dir', '-o', default="output", help="The output directory")
 
     args = parser.parse_args()
+    output_dir = args.output_dir
     parse_panel(args.file)
     print("Pages:", total_pages())
