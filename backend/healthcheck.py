@@ -5,6 +5,5 @@ if __name__ == "__main__":
         with open("health.status") as f:
             n = int(f.read())
             sys.exit(n)
-    except:
-        pass
-    sys.exit(1) # unhealthy
+    except Exception:
+        sys.exit(1) # unhealthy
