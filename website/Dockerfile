@@ -1,6 +1,6 @@
 FROM alpine:3.14
 
-RUN apk add --no-cache dos2unix python3 py3-pip nodejs npm
+RUN apk add --no-cache dos2unix python3 py3-pip nodejs npm curl
 
 WORKDIR /app
 
