@@ -56,7 +56,7 @@ class SoundWebClientProtocol(asyncio.Protocol):
 
     def connection_made(self, transport):
         print(self.name, "Connected", flush=True)
-        self.health_queue.sync_q.put({"name": self.name, "status": True})
+        self.health_queue.put({"name": self.name, "status": True})
         if self.subscribed_params:
             for p in self.subscribed_params:
                 transport.write(p.encode())
