@@ -1,6 +1,6 @@
 import React from 'react'
 
-import { Range, Direction } from 'react-range';
+import { Range, Direction } from '@quphoria/react-range';
 
 import ControlElement from './ControlElement'
 
