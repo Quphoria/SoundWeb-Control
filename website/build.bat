@@ -9,5 +9,5 @@ if defined latest SET latesttag=--tag "quphoria/soundweb-control"
 
 @REM docker build --tag %tag% .
 docker buildx create --name soundwebbuilder --use
-docker buildx build --platform=linux/amd64,linux/arm64 --push --tag %tag% %latesttag% .
+docker buildx build --platform=linux/amd64,linux/arm64,linux/arm --push --tag %tag% %latesttag% .
 docker buildx rm soundwebbuilder
