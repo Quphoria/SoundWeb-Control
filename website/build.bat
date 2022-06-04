@@ -3,7 +3,7 @@ cd /D "%~dp0"
 
 SET latest=1
 
-SET tag="quphoria/soundweb-control:v1.0.1"
+SET tag="quphoria/soundweb-control:v1.0.2"
 SET latesttag=
 if defined latest SET latesttag=--tag "quphoria/soundweb-control"
 
