@@ -55,7 +55,7 @@ function onTableChange(e, id, key, users, mutateUsers, hiddenTabs=[]) {
 
 function generateTableRow(user, current_user, users, mutateUsers, setDeleteModalState, setInfoModalState, setChangePasswordModalState) {
   var tab_buttons = [];
-  for(const i = 0; i < tab_count; i++) {
+  for(var i = 0; i < tab_count; i++) {
     tab_buttons.push((
       <FormCheck
         key={`${user.id}-tabhidden-${i}`}
