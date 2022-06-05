@@ -1,6 +1,6 @@
 import { withSessionRoute } from "../../../lib/withSession";
 import { userDatabase } from "../../../lib/userDatabase";
-import validSession from "../../lib/validSession";
+import validSession from "../../../lib/validSession";
 
 export default withSessionRoute(
   async function usersRoute(req, res) {
