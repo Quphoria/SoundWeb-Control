@@ -1,10 +1,10 @@
 import { withSessionRoute } from "../../../lib/withSession";
-import { userDatabase, sanitised } from "../../../lib/userDatabase";
+import { userDatabase } from "../../../lib/userDatabase";
 
 export default withSessionRoute(
-  function usersRoute(req, res) {
+  async function usersRoute(req, res) {
     try {
-      const current_user = req.session.user;
+      const current_user = await validSession(req);
       if (!current_user?.admin) {
         res.send("Unauthorised");
         return;

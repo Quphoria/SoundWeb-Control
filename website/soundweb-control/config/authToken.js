@@ -1,9 +1,10 @@
 const crypto    = require('crypto');
 const { config } = require("../config/config.js");
 
-export default function createAuthToken(username) {
+export default function createAuthToken(username, admin) {
   const data = JSON.stringify({
     username, 
+    admin,
     time: Date.now()
   });
 

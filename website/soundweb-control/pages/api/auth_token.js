@@ -1,29 +1,14 @@
 import { withSessionRoute } from "../../lib/withSession";
-import { userDatabase, sanitised } from "../../lib/userDatabase";
 import createAuthToken from "../../config/authToken";
+import validSession from "../../lib/validSession";
 
 export default withSessionRoute(
   async function authTokenRoute(req, res) {
-    const ip = req.headers["x-real-ip"] || req.connection.remoteAddress;
-    const user = req.session.user;
-    if (user === undefined) {
-      res.send(null);
-      return;
-    }
-    userDatabase.load();
-    const db_user = userDatabase.find(u => 
-      u.id === user.id && 
-      u.username === user.username && 
-      u.password === user.password && 
-      u.admin === user.admin &&
-      !u.disabled);
-
+    const db_user = await validSession(req);
     if (!db_user) {
-      console.log(`${user.username}#${user.id} invalid session from ${ip}`);
-      await req.session.destroy();
       res.send(null);
       return;
     }
-    res.send(createAuthToken(db_user.username));
+    res.send(createAuthToken(db_user.username, db_user.admin));
   }
 );
