@@ -14,6 +14,12 @@ export default withSessionRoute(
       status: !!options?.status
     };
 
+    // Restrict access to certain options to admins only
+    if (!db_user.admin && safe_options.status) {
+      res.send(null);
+      return;
+    }
+
     res.send(createAuthToken(db_user.username, db_user.admin, safe_options));
   }
 );
