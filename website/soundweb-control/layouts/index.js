@@ -1,6 +1,7 @@
 import React from "react"
 import Link from "next/link"
 import { Global, css } from "@emotion/react"
+import { useEffect } from "react"
 
 import { Nav, PageBody, Footer } from "../styles"
 import useUser from "../lib/useUser"
@@ -8,6 +9,14 @@ import fetchJson from "../lib/fetchJson"
 
 const Layout = ({ children }) => {
   const { user, mutateUser } = useUser();
+
+  useEffect(() => {
+    // update user info every 60 seconds
+    // this will also refresh the cookie as needed
+    const intervalId = setInterval(() => mutateUser(), 60000); 
+  
+    return () => clearInterval(intervalId);
+  }, []);
   
   return (
     <React.Fragment>

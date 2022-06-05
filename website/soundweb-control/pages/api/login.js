@@ -20,7 +20,13 @@ export default withSessionRoute(
       userDatabase.update(user.id, { lastLogin: new Date().toISOString() });
 
       console.log(`${user.username}#${user.id} logged in from ${ip}`);
-      req.session.user = user;
+      req.session.user = {
+        id: user.id,
+        username: user.username,
+        password: user.password, // Used for checking that the password has not been changed on the /api/user endpoint
+        admin: user.admin,
+        t: Date.now()
+      };
       await req.session.save();
       res.send({ ok: true, user: {isLoggedIn: true, ...sanitised(user)} });
     } catch (error) {
