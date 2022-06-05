@@ -16,8 +16,9 @@ def run_in_executor(f):
     return inner
 
 class SoundWebClientProtocol(asyncio.Protocol):
-    def __init__(self, name: str, msg_queue: SyncQueue, resp_queue: SyncQueue, subscribed_params: list, health_queue: SyncQueue, loop):
+    def __init__(self, name: str, h_id: str, msg_queue: SyncQueue, resp_queue: SyncQueue, subscribed_params: list, health_queue: SyncQueue, loop):
         self.name = name
+        self.h_id = h_id
         self.msg_queue = msg_queue
         self.resp_queue = resp_queue
         self.subscribed_params = subscribed_params
@@ -56,7 +57,7 @@ class SoundWebClientProtocol(asyncio.Protocol):
 
     def connection_made(self, transport):
         print(self.name, "Connected", flush=True)
-        self.health_queue.put({"name": self.name, "status": True})
+        self.health_queue.put({"id": self.h_id, "status": True})
         if self.subscribed_params:
             for p in self.subscribed_params:
                 transport.write(p.encode())
@@ -88,27 +89,28 @@ class SoundWebClientProtocol(asyncio.Protocol):
         self.loop.stop()
 
 class SoundWebThread(threading.Thread):
-    def __init__(self, name: str, soundweb_ip: str, soundweb_port: int, msg_queue: Queue, resp_queue: Queue, subscribed_params: list, health_check_queue: Queue):
+    def __init__(self, name: str, h_id: str, soundweb_ip: str, soundweb_port: int, msg_queue: Queue, resp_queue: Queue, subscribed_params: list, health_check_queue: Queue):
         super().__init__(daemon=True)
         self.name = name
+        self.h_id = h_id
         self.soundweb_ip = soundweb_ip
         self.soundweb_port = soundweb_port
         self.msg_queue = msg_queue
         self.resp_queue = resp_queue
         self.health_queue = health_check_queue
         self.subscribed_params = subscribed_params
-        self.health_queue.sync_q.put({"name": self.name, "status": False})
+        self.health_queue.sync_q.put({"id": self.h_id, "status": False})
         self.exitFlag = False
     async def createClient(self, loop):
         if self.resp_queue:
             transport, protocol = await loop.create_connection(
-                lambda: SoundWebClientProtocol(self.name,
+                lambda: SoundWebClientProtocol(self.name, self.h_id,
                     self.msg_queue.sync_q, self.resp_queue.sync_q,
                     self.subscribed_params, self.health_queue.sync_q, loop),
                 self.soundweb_ip, self.soundweb_port)
         else:
             transport, protocol = await loop.create_connection(
-                lambda: SoundWebClientProtocol(self.name,
+                lambda: SoundWebClientProtocol(self.name, self.h_id,
                     self.msg_queue.sync_q, None,
                     self.subscribed_params, self.health_queue.sync_q, loop),
                 self.soundweb_ip, self.soundweb_port)
@@ -138,7 +140,7 @@ class SoundWebThread(threading.Thread):
                 loop.close()
             except Exception as ex:
                 print(self.name, "Error:", ex, flush=True)
-                self.health_queue.sync_q.put({"name": self.name, "status": False})
+                self.health_queue.sync_q.put({"id": self.h_id, "status": False})
             if not self.exitFlag:
                 print(self.name, "Disconnected from SoundWeb, Reconnecting in 5 seconds", flush=True)
                 for i in range(5):

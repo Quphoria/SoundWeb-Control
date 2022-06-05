@@ -89,7 +89,11 @@ class WebSocket {
     if (!this.props.use_auth) {
       this.setupWebsocket("__test__");
     } else {
-      fetch("/api/auth_token", {method: 'POST'}).then(res => res.json()).then(auth => {
+      fetch("/api/auth_token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({options: this.props.options})
+      }).then(res => res.json()).then(auth => {
         if (auth === null) {
           throw "null";
         }

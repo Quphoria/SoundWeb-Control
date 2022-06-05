@@ -15,6 +15,8 @@ WEBSOCKET_LIST = []
 
 param_cache = {}
 
+client_thread_status = {}
+
 async def resp_broadcast(node: str):
     global param_cache
     while True:
@@ -66,18 +68,20 @@ def check_auth_token_hmac(message: str):
             if abs(t - token_time) < token_time_range:
                 print(f"HMAC verified for {username}", flush=True)
                 previous_tokens[t] = h
-                return True
+                return True, data
     except Exception as ex:
         # print(ex, flush=True)
         # hmac failed
         # ignore error
         pass
-    return False
+    return False, None
 
 process_pool = ThreadPoolExecutor(2)
 
 async def msg_handler(websocket):
     print("Websocket Connection:", websocket.remote_address, flush=True)
+    user_data = None
+    user_options = {}
     try:
         first_message = True
         async for message in websocket:
@@ -86,19 +90,24 @@ async def msg_handler(websocket):
                 # break out of loop if auth token invalid
                 # run check_auth_token_hmac in executor to prevent hanging the main thread with hmac calculations
                 loop = asyncio.get_event_loop()
-                auth_valid = await loop.run_in_executor(process_pool, check_auth_token_hmac, message)
-                if not auth_valid:
+                auth_valid, user_data = await loop.run_in_executor(process_pool, check_auth_token_hmac, message)
+                if user_data is None or not auth_valid:
                     await websocket.close()
                     break
+                user_options = user_data.get("options", {})
                 # send __test__ to acknowledge websocket auth
                 await websocket.send("__test__")
-                for p in param_cache.values():
-                    await websocket.send(p)
-                WEBSOCKET_LIST.append(websocket)
+                if not user_options.get("status", False):
+                    for p in param_cache.values():
+                        await websocket.send(p)
+                    WEBSOCKET_LIST.append(websocket)
                 first_message = False
             elif message == "__test__":
                 await websocket.send("__test__")
-            else:
+            elif message == "status":
+                if user_options.get("status", False):
+                    await websocket.send(json.dumps(client_thread_status))
+            elif not user_options.get("status", False):
                 try:
                     p = Packet.from_json(json.loads(message))
                     sub_handler_node = get_packet_node_handler(p)
@@ -144,13 +153,14 @@ def update_health(healthy: bool):
             f.write("1")
 
 async def health_check():
+    global client_thread_status
     client_thread_status = {}
     if health_check_queue is None:
         return
     while True:
         # Get a "work item" out of the queue.
         status = await health_check_queue.async_q.get()
-        client_thread_status[status["name"]] = status["status"]
+        client_thread_status[status["id"]] = status["status"]
 
         healthy = all(s for s in client_thread_status.values())
         update_health(healthy)
@@ -166,9 +176,9 @@ async def main():
     soundweb_ip = config["nodes"]["default"]
     subscribed_params = {key: list() for key in config["nodes"].keys()}
 
-    soundweb_thread = SoundWebThread("SoundWeb Message Thread", soundweb_ip, 1023, msg_queue, None, None, health_check_queue)
+    soundweb_thread = SoundWebThread("SoundWeb Message Thread", "Message (default)", soundweb_ip, 1023, msg_queue, None, None, health_check_queue)
     soundweb_subscribe_threads = {
-        key: SoundWebThread(f"SoundWeb {key} Sync Thread", ip, 1023, subscribe_queues[key], resp_queues[key], subscribed_params[key], health_check_queue)
+        key: SoundWebThread(f"SoundWeb {key} Sync Thread", key, ip, 1023, subscribe_queues[key], resp_queues[key], subscribed_params[key], health_check_queue)
         for key, ip in config["nodes"].items()}
     soundweb_thread.start()
     for t in soundweb_subscribe_threads.values():

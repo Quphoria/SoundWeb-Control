@@ -26,7 +26,7 @@ const Panel = props => {
     return <Layout><Padding>Loading...</Padding></Layout>
   }
 
-  var websocket_uri = props.websocket.replace("{HOST}", window.location.host.split(":",1)[0]);
+  const websocket_uri = props.websocket.replace("{HOST}", window.location.host.split(":",1)[0]);
 
   return (
     <Layout>
