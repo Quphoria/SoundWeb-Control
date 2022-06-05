@@ -7,7 +7,7 @@ import Head from "next/head"
 import useUser from "../lib/useUser"
 import { Padding, Rainbow } from "../styles"
 import UserManager from "../components/admin/UserManager"
-import BackendStatus from "../components/BackendStatus"
+import BackendStatus from "../components/admin/BackendStatus"
 
 export async function getStaticProps () {
   // `getStaticProps` is executed on the server side.

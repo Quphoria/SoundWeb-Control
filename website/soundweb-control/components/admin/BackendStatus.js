@@ -3,7 +3,7 @@ import { withRouter } from "next/router"
 import Head from 'next/head'
 import LoadingOverlay from 'react-loading-overlay-ts';
 
-import WebSocket from './Websocket'
+import WebSocket from '../Websocket'
 import PanelContents from '../PanelContents'
 
 class Tabs extends React.Component {
