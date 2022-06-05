@@ -53,6 +53,10 @@ function onTableChange(e, id, key, users, mutateUsers, hiddenTabs=[]) {
   }).then(() => mutateUsers());
 }
 
+function formatDate(date) {
+  return date == "Unknown" ? "Unknown" : new Date(date).toLocaleString()
+}
+
 function generateTableRow(user, current_user, users, mutateUsers, setDeleteModalState, setInfoModalState, setChangePasswordModalState) {
   var tab_buttons = [];
   for(var i = 0; i < tab_count; i++) {
@@ -115,9 +119,9 @@ function generateTableRow(user, current_user, users, mutateUsers, setDeleteModal
           body: (<p>
             <b>ID: </b>{user.id} <br />
             <b>Username: </b>{user.username} <br />
-            <b>Created: </b>{new Date(user.dateCreated).toLocaleString()} <br />
-            <b>Changed: </b>{new Date(user.lastChange).toLocaleString()} <br />
-            <b>Last Login: </b>{new Date(user.lastLogin).toLocaleString()}
+            <b>Created: </b>{formatDate(user.dateCreated)} <br />
+            <b>Changed: </b>{formatDate(user.lastChange)} <br />
+            <b>Last Login: </b>{formatDate(user.lastLogin)}
           </p>)
         });
       }}
