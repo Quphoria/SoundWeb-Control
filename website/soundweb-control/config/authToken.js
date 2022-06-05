@@ -1,11 +1,12 @@
 const crypto    = require('crypto');
 const { config } = require("../config/config.js");
 
-export default function createAuthToken(username, admin) {
+export default function createAuthToken(username, admin, options) {
   const data = JSON.stringify({
     username, 
     admin,
-    time: Date.now()
+    time: Date.now(),
+    options
   });
 
   const hmac = crypto.createHmac("sha256", config.authTokenSecret);    

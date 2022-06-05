@@ -26,9 +26,11 @@ const Panel = props => {
     return <Layout><Padding>Loading...</Padding></Layout>
   }
 
+  var websocket_uri = props.websocket.replace("{HOST}", window.location.host.split(":",1)[0]);
+
   return (
     <Layout>
-      <Tabs hiddenTabs={!user.admin && user.hiddenTabs} websocket={props.websocket} />
+      <Tabs hiddenTabs={!user.admin && user.hiddenTabs} websocket={websocket_uri} />
     </Layout>
   )
 }

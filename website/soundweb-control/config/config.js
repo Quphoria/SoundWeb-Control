@@ -8,7 +8,8 @@ const defaultConfig = `{
   // Generate a 100 character password here: https://1password.com/password-generator/
   "sessionPassword": "complex_password_at_least_32_characters_long",
   // This is the address and port of the soundweb websocket bridge
-  "soundwebBridgeWebsocket": "ws://192.168.1.2:8765",
+  // You can use {HOST} to get the current hostname used to connect to the webserver
+  "soundwebBridgeWebsocket": "ws://{HOST}:8765",
   // Enable this if ssl is being used (don't enable if http is being used)
   "useSSL": false,
   // Auth Token Secret, generate another 100 character password
