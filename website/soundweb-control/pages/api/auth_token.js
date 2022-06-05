@@ -11,7 +11,7 @@ export default withSessionRoute(
       return;
     }
     const safe_options = {
-      status: !!options.status
+      status: !!options?.status
     };
 
     res.send(createAuthToken(db_user.username, db_user.admin, safe_options));
