@@ -62,7 +62,7 @@ class Tabs extends React.Component {
 
   componentDidMount() {
     this.setupWebsocket();
-    this.timer = setTimeout(() => this.websocket.sendMessage("status"), 10000); // Refresh status every 10 seconds
+    this.timer = setInterval(() => this.websocket.sendMessage("status"), 10000); // Refresh status every 10 seconds
   }
 
   componentWillUnmount() {
