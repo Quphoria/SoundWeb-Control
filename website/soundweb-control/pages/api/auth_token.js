@@ -10,6 +10,10 @@ export default withSessionRoute(
       res.send(null);
       return;
     }
-    res.send(createAuthToken(db_user.username, db_user.admin, options));
+    const safe_options = {
+      status: !!options.status
+    };
+
+    res.send(createAuthToken(db_user.username, db_user.admin, safe_options));
   }
 );
