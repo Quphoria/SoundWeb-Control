@@ -25,7 +25,7 @@ export default async function validSession(req) {
 
   // Refresh session cookie if it will expire in the threshold time
   if ((sessionOptions.cookieLifetime + user.t) - Date.now() < sessionOptions.refreshThreshold) {
-    console.log(`${user.username}#${user.id} session refreshed from ${ip}`);
+    // console.log(`${user.username}#${user.id} session refreshed from ${ip}`);
     req.session.user.t = Date.now();
     await req.session.save();
   }
