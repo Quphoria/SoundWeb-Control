@@ -17,6 +17,21 @@ param_cache = {}
 
 client_thread_status = {}
 
+async def resp_broadcast_send(websocket, data: str):
+    try:
+        await websocket.send(data)
+    except websockets.exceptions.ConnectionClosedError:
+        if websocket in WEBSOCKET_LIST:
+            WEBSOCKET_LIST.remove(websocket)
+    except Exception as ex:
+        print("Broadcast Error: " + str(ex), flush=True)
+        try:
+            await websocket.close()
+        except:
+            pass
+        if websocket in WEBSOCKET_LIST:
+            WEBSOCKET_LIST.remove(websocket)
+
 async def resp_broadcast(node: str):
     global param_cache
     while True:
@@ -24,20 +39,9 @@ async def resp_broadcast(node: str):
         msg = await resp_queues[node].async_q.get()
         if msg["type"] == "SET":
             param_cache[msg["parameter"]] = json.dumps(msg)
-        for websocket in WEBSOCKET_LIST:
-            try:
-                await websocket.send(json.dumps(msg))
-            except websockets.exceptions.ConnectionClosedError:
-                if websocket in WEBSOCKET_LIST:
-                    WEBSOCKET_LIST.remove(websocket)
-            except Exception as ex:
-                print("Broadcast Error: " + str(ex), flush=True)
-                try:
-                    await websocket.close()
-                except:
-                    pass
-                if websocket in WEBSOCKET_LIST:
-                    WEBSOCKET_LIST.remove(websocket)
+        data = json.dumps(msg)
+        # send all at the same time instead of doing sequentially
+        await asyncio.wait([resp_broadcast_send(websocket, data) for websocket in WEBSOCKET_LIST])
 
 def get_packet_node_handler(p: Packet) -> str:
     global config
