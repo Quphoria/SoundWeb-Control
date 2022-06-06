@@ -195,6 +195,7 @@ export default function UserManager({
         justifyContent: "flex-end",
         marginBottom: "0.2em"
       }}>
+        <h5 style={{margin: "auto auto 0.2em 0.2em"}}>Users</h5>
         <Button variant="success"  onClick={() => {
           setAddUserModalState({
             show: true,
