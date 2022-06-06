@@ -67,6 +67,10 @@ def check_auth_token_hmac(message: str):
 
 process_pool = ThreadPoolExecutor(2)
 
+def websocket_send(websocket, message):
+    # this uses websocket.write_frame_sync internally and should give better performance
+    websockets.broadcast([websocket], message)
+
 async def msg_handler(websocket):
     print("Websocket Connection:", websocket.remote_address, flush=True)
     user_data = None
@@ -92,16 +96,16 @@ async def msg_handler(websocket):
                     WEBSOCKET_LIST.append(websocket)
                 first_message = False
             elif message == "__test__":
-                await websocket.send("__test__")
+                websocket_send(websocket, "__test__")
             elif message == "status":
                 if user_data.get("admin", False):
-                    await websocket.send(json.dumps({
+                    websocket_send(websocket, json.dumps({
                         "type": "status",
                         "data": client_thread_status
                     }))
             elif message == "version":
                 if user_data.get("admin", False):
-                    await websocket.send(json.dumps({
+                    websocket_send(websocket, json.dumps({
                         "type": "version",
                         "data": os.environ.get('VERSION', "Unknown")
                     }))
@@ -116,7 +120,7 @@ async def msg_handler(websocket):
                         for sub in subscribed_params[sub_handler_node]:
                             if sub.param_str() == p.param_str() and sub.message_type == p.message_type:
                                 if p.param_str() in param_cache: # avoid resubscribing to parameters if value cached
-                                    await websocket.send(param_cache[p.param_str()])
+                                    websocket_send(websocket, param_cache[p.param_str()])
                                     sent_value = True
                                 else:
                                     subscribed_params[sub_handler_node].remove(sub)
