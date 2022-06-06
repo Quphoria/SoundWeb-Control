@@ -25,7 +25,7 @@ async def resp_broadcast(node: str):
         if msg["type"] == "SET":
             param_cache[msg["parameter"]] = json.dumps(msg)
         if WEBSOCKET_LIST:
-            # this automatically removes websockets from the list when they disconnect
+            # the msg_handler function automatically removes websockets from the list when they disconnect
             websockets.broadcast(WEBSOCKET_LIST, json.dumps(msg))
 
 def get_packet_node_handler(p: Packet) -> str:
