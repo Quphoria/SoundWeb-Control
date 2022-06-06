@@ -41,7 +41,8 @@ async def resp_broadcast(node: str):
             param_cache[msg["parameter"]] = json.dumps(msg)
         data = json.dumps(msg)
         # send all at the same time instead of doing sequentially
-        await asyncio.wait([resp_broadcast_send(websocket, data) for websocket in WEBSOCKET_LIST])
+        if WEBSOCKET_LIST:
+            await asyncio.wait([asyncio.create_task(resp_broadcast_send(websocket, data)) for websocket in WEBSOCKET_LIST])
 
 def get_packet_node_handler(p: Packet) -> str:
     global config
