@@ -56,9 +56,8 @@ class WebSocket {
     };
 
     websocket.onmessage = evt => {
-      if (evt.data === "__test__") {
-        this.test_ok = true;
-      } else {
+      this.test_ok = true;
+      if (evt.data !== "__test__") {
         this.props.onMessage(evt.data);
       }
     };
