@@ -28,6 +28,9 @@ RUN if [[ $TARGETPLATFORM == linux/arm* && $TARGETPLATFORM != linux/arm64* ]]; t
 RUN dos2unix docker-entrypoint.sh
 RUN mkdir /data
 
+ARG VERSION
+ENV VERSION=${VERSION}
+
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \

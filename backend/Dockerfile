@@ -8,6 +8,9 @@ COPY ./ .
 
 RUN pip3 install -r requirements.txt
 
+ARG VERSION
+ENV VERSION=${VERSION}
+
 EXPOSE 8765
 
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
