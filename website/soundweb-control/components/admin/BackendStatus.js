@@ -89,11 +89,13 @@ class Tabs extends React.Component {
             style={{marginRight: "0.5em"}}/>
           <span style={{fontWeight: "bold"}}>Backend Node Status:</span>
           {Object.entries(nodes).map(([node, status]) => (
-            <span style={{
-              paddingLeft: "1em"
+            <div style={{
+              display: "inline-block",
+              paddingLeft: "1em",
+              whiteSpace: "nowrap"
             }}>
               {status ? "✔️" : "❌"}{node}
-            </span>
+            </div>
           ))}
         </div>
       </div>
