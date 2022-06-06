@@ -43,8 +43,6 @@ async def resp_broadcast(node: str):
         # send all at the same time instead of doing sequentially
         if WEBSOCKET_LIST:
             await asyncio.wait([asyncio.create_task(resp_broadcast_send(websocket, data)) for websocket in WEBSOCKET_LIST])
-            # this automatically removes websockts from the list when they disconnect
-            websockets.broadcast(WEBSOCKET_LIST, json.dumps(msg))
 
 def get_packet_node_handler(p: Packet) -> str:
     global config
