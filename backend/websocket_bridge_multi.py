@@ -134,6 +134,10 @@ async def msg_handler(websocket):
                     print("Failed to decode:", ex, ":", message, flush=True)
     except websockets.exceptions.ConnectionClosedError:
         pass
+    except Exception as ex:
+        if websocket in WEBSOCKET_LIST:
+            WEBSOCKET_LIST.remove(websocket)
+        raise ex
     try:
         await websocket.close()
     except:
