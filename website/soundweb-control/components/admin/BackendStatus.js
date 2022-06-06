@@ -6,12 +6,19 @@ import WebSocket from '../Websocket'
 class Tabs extends React.Component {
   constructor(props) {
     super(props);
-    this.state = {connected: false, nodes: {}};
+    this.state = {connected: false, nodes: {}, version: "Unknown"};
   }
 
-  handleData(data) {
-    const nodes = JSON.parse(data);
-    this.setState({nodes});
+  handleData(msg) {
+    const { type, data } = JSON.parse(msg);
+    switch (type) {
+      case "status":
+        this.setState({nodes: data});
+        break;
+      case "version":
+        this.setState({version: data});
+        break;
+    }
   }
 
   messageEvent(event) {
@@ -31,6 +38,7 @@ class Tabs extends React.Component {
   websocketConnected() {
     console.log("Connected");
     this.websocket.sendMessage("status"); // Get status
+    this.websocket.sendMessage("version"); // Get version
   }
 
   setupWebsocket() {
@@ -51,7 +59,7 @@ class Tabs extends React.Component {
       reconnect: true,
       debug: true,
       use_auth: true,
-      options: {status: true},
+      options: {statusonly: true},
       reconnectIntervalInMilliSeconds: 5000 // Auto reconnect after 5 seconds
     });
     this.websocket.connect();
@@ -67,8 +75,18 @@ class Tabs extends React.Component {
     clearTimeout(this.timer);
   }
 
+  frontendVersion() {
+    return (<div style={{
+      display: "inline-block",
+      paddingLeft: "1em",
+      whiteSpace: "nowrap"
+    }}>
+      <b>Frontend:</b> {process.env.VERSION || (process.env.NODE_ENV !== "production" && "Dev") || "Unknown"}
+    </div>)
+  }
+
   render() {
-    const { connected, nodes } = this.state;
+    const { connected, nodes, version } = this.state;
 
     const all_connected = Object.values(nodes).every(x => x === true);
 
@@ -82,7 +100,8 @@ class Tabs extends React.Component {
           <span style={{fontWeight: "bold"}}>
             <i className="bi bi-exclamation-triangle-fill text-danger" style={{marginRight: "0.5em"}}/>
             Backend Offline
-            </span>
+          </span>
+          {this.frontendVersion()}
         </div>
         <div style={{display: connected ? "block" : "none"}}>
           <i className={`bi bi-hdd-rack-fill ${all_connected ? "text-success" : "text-warning"}`}
@@ -97,6 +116,14 @@ class Tabs extends React.Component {
               {status ? "✔️" : "❌"}{node}
             </div>
           ))}
+          <div style={{
+              display: "inline-block",
+              paddingLeft: "1em",
+              whiteSpace: "nowrap"
+            }}>
+              <b>Backend:</b> {version}
+          </div>
+          {this.frontendVersion()}
         </div>
       </div>
     );

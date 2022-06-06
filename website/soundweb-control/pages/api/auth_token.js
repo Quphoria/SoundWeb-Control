@@ -11,14 +11,16 @@ export default withSessionRoute(
       return;
     }
     const safe_options = {
-      status: !!options?.status
+      statusonly: !!options?.statusonly
     };
 
+    // admin is checked per command on backend so statusonly is safe for regular users
+
     // Restrict access to certain options to admins only
-    if (!db_user.admin && safe_options.status) {
-      res.send(null);
-      return;
-    }
+    // if (!db_user.admin && safe_options.statusonly) {
+    //   res.send(null);
+    //   return;
+    // }
 
     res.send(createAuthToken(db_user.username, db_user.admin, safe_options));
   }

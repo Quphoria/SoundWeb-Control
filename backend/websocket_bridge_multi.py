@@ -1,4 +1,4 @@
-import asyncio, websockets
+import asyncio, websockets, os
 from janus import Queue
 import json, hmac, hashlib, time
 from config import load_config
@@ -105,9 +105,18 @@ async def msg_handler(websocket):
             elif message == "__test__":
                 await websocket.send("__test__")
             elif message == "status":
-                if user_options.get("status", False):
-                    await websocket.send(json.dumps(client_thread_status))
-            elif not user_options.get("status", False):
+                if user_data.get("admin", False):
+                    await websocket.send(json.dumps({
+                        "type": "status",
+                        "data": client_thread_status
+                    }))
+            elif message == "version":
+                if user_data.get("admin", False):
+                    await websocket.send(json.dumps({
+                        "type": "version",
+                        "data": os.environ.get('VERSION', "Unknown")
+                    }))
+            elif not user_options.get("statusonly", False):
                 try:
                     p = Packet.from_json(json.loads(message))
                     sub_handler_node = get_packet_node_handler(p)
@@ -193,6 +202,7 @@ async def main():
 if __name__ == "__main__":
     update_health(False) # set healthy to false when starting
     config = load_config("config/config.json")
+    print("HiQnet Websocket Proxy", os.environ.get('VERSION', "Unknown"))
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
