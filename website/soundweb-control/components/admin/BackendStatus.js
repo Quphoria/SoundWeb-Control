@@ -81,7 +81,7 @@ class Tabs extends React.Component {
       paddingLeft: "1em",
       whiteSpace: "nowrap"
     }}>
-      <b>Frontend:</b> {process.env.VERSION || (process.env.NODE_ENV !== "production" && "Dev") || "Unknown"}
+      <b>Frontend:</b> {process.env.NEXT_PUBLIC_VERSION || (process.env.NODE_ENV !== "production" && "Dev") || "Unknown"}
     </div>)
   }
 

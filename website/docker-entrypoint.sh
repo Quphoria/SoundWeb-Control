@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# expose version env variable to nextjs
+export NEXT_PUBLIC_VERSION=$VERSION
+
 # install npm modules on launch to reduce image size
 # shouldn't take that long if already installed
 # force as some modules don't offically support the latest version of react
