@@ -13,13 +13,6 @@ class Tabs extends React.Component {
     this.state = {connected: false};
   }
 
-  handleData(data) {
-    let result = JSON.parse(data);
-    // console.log(result);
-    const event = new CustomEvent('soundweb_data', { detail: result });
-    document.dispatchEvent(event);
-  }
-
   messageEvent(event) {
     document.ws = this.websocket;
 
@@ -46,7 +39,11 @@ class Tabs extends React.Component {
   setupWebsocket() {
     this.websocket = new WebSocket({
       url: this.props.websocket,
-      onMessage: this.handleData,
+      onMessage: (data) => {
+        let result = JSON.parse(data);
+        const event = new CustomEvent('soundweb_data', { detail: result });
+        document.dispatchEvent(event);
+      },
       // Dirty hack to use correct context in callback
       onOpen: (() => {
         this.websocketConnected();
