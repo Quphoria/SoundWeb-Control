@@ -247,6 +247,16 @@ class Fader extends ControlElement {
                   zIndex: 4
                 }}
               />
+              {/* Larger div to increase click region (for mobile touch) */}
+              <div style={{
+                position: "absolute",
+                left: "-1vw",
+                top: "-1vh",
+                width: "calc(" + handleWidth + "px + 2vw)",
+                height: "calc(" + handleHeight + "px + 2vh)",
+                // backgroundColor: "#e83474"
+              }}>
+              </div>
             </div>
           )}
         />
