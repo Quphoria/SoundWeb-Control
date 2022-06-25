@@ -1,4 +1,4 @@
-import asyncio, os, threading, zlib
+import asyncio, os, threading
 from janus import Queue
 import json, hmac, hashlib, time
 from config import load_config
