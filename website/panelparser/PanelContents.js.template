@@ -24,15 +24,7 @@ function getSubtab(subtab, depth) {
 export const tab_count = [TAB_COUNT];
 
 function PanelContents(props) {
-  const { query: { tab }, pathname, setSubtab, subtab, hiddenTabs } = props;
-  var home_tab = 0;
-  for (home_tab = 0; home_tab < tab_count; home_tab++) {
-    if (!(hiddenTabs && hiddenTabs.includes(String(home_tab)))) {
-      break;
-    }
-  }
-
-  const selected_tab = tab == null ? String(home_tab) : tab;
+  const { selected_tab, pathname, setSubtab, subtab, hiddenTabs } = props;
 
   // Redirect to panel home if invalid tab
   if (parseInt(selected_tab).toString() !== selected_tab ||

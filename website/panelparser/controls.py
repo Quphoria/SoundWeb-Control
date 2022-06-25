@@ -84,9 +84,6 @@ class XY:
     def __sub__(self, a):
         return XY(self.x - a.x, self.y - a.y)
 
-class RawJS(str):
-    pass
-
 @dataclass
 class Control:
     component = "Control"
@@ -104,9 +101,7 @@ class Control:
         try:
             for attrib, value in self.attribs.items():
                 s += attrib + "="
-                if type(value) == RawJS:
-                    s += "{" + str(value) + "}"
-                elif type(value) == str:
+                if type(value) == str:
                     s += '"' + html.escape(value) + '"'
                 elif type(value) == int or type(value) == float:
                     s += "{" + str(value) + "}"
@@ -349,7 +344,7 @@ class ParameterControl(Control):
             param_id = int(statevariable.attrib["svID"])
             c.attribs["parameter"] = param_str(node, v_device, obj_id, param_id)
             if tab is not None:
-                c.attribs["inhibit_subscribe"] = RawJS(f"selected_tab != \"{str(tab)}\"")
+                c.attribs["subscribe_tab"] = tab
             c.attribs["svClass"] = statevariable.attrib["SVClassID"]
         else:
             c.attribs["parameter"] = "none"
