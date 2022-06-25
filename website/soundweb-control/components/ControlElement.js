@@ -4,6 +4,7 @@ import getSV from '../lib/StateVariable';
 class ControlElement extends React.Component {
     static defaultProps = {
       parameter: undefined,
+      subscribe_tab: undefined,
       svClass: undefined,
       format: null,
       font: "inherit"
@@ -17,7 +18,11 @@ class ControlElement extends React.Component {
 
     subscribeToParameter() {
         if (this.props.parameter && this.props.parameter !== "none") {
-            document.addEventListener('soundweb_connected', () => {
+            document.addEventListener('soundweb_connected', (e) => {
+                // Check if we are on the correct tab
+                if (this.props.subscribe_tab !== undefined &&
+                  this.props.subscribe_tab != e.detail.tab) return;
+
                 const event = new CustomEvent('soundweb_msg', {
                   detail: {
                     type: "SUBSCRIBE",

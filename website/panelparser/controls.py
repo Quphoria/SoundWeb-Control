@@ -142,7 +142,7 @@ class Control:
         self.name = self.attribs["Name"]
 
     @classmethod
-    def parse(cls, Control, depth, tab_depth):
+    def parse(cls, Control, depth, tab_depth, tab):
         ctype = Control.attrib.get("Type", None)
         Location = XY.parse(Control.attrib.get("Location", "0,0"))
         Size = XY.parse(Control.attrib.get("Size", "0,0"))
@@ -166,8 +166,8 @@ class TabPage(Control):
     page_number: int = 0
 
     @classmethod
-    def parse(cls, Control, depth, tab_depth, page_number, tabSize):
-        c = super().parse(Control, depth, tab_depth)
+    def parse(cls, Control, depth, tab_depth, tab, page_number, tabSize):
+        c = super().parse(Control, depth, tab_depth, tab)
         c.page_number = page_number
         c.attribs["w"] = tabSize.x
         c.attribs["h"] = tabSize.y
@@ -178,7 +178,7 @@ class TabPage(Control):
         subcontrols = Control.find("Controls", None)
         if subcontrols is not None:
             for subcontrol in subcontrols.findall("Control"):
-                sc = parse_control(subcontrol, depth+1, tab_depth+1)
+                sc = parse_control(subcontrol, depth+1, tab_depth+1, tab)
                 if sc is not None:
                     c.contents.append(sc)
         # assert False, "Parse Not Implemented: " + cls.__name__
@@ -271,9 +271,9 @@ class TabPanel(Control):
         return s
     
     @classmethod
-    def parse(cls, Control, depth, tab_depth):
+    def parse(cls, Control, depth, tab_depth, tab):
         global pages
-        c = super().parse(Control, depth, tab_depth)
+        c = super().parse(Control, depth, tab_depth, tab)
         c.tabPages = []
         Size = XY.parse(Control.attrib.get("Size", "0,0"))
         c.TabSize = XY.parse(Control.attrib.get("TabSize", "0,0"))
@@ -283,7 +283,7 @@ class TabPanel(Control):
             for i, page in enumerate(tp.findall("TabPage")):
                 # Audio Architect seems to add 4px margin on tab body
                 UsableTabBodySize = c.TabBodySize  - XY(8, 8)
-                c.tabPages.append(TabPage.parse(page, depth+4, tab_depth, i, UsableTabBodySize))
+                c.tabPages.append(TabPage.parse(page, depth+4, tab_depth, i if tab is None else tab, i, UsableTabBodySize))
         c.attribs["TabSizeW"] = c.TabSize.x
         c.attribs["TabSizeH"] = c.TabSize.y
         if tab_depth == 0:
@@ -293,8 +293,8 @@ class TabPanel(Control):
 @dataclass
 class TextControl(Control):
     @classmethod
-    def parse(cls, Control, depth, tab_depth):
-        c = super().parse(Control, depth, tab_depth)
+    def parse(cls, Control, depth, tab_depth, tab):
+        c = super().parse(Control, depth, tab_depth, tab)
         c.attribs["VAlign"] = "Middle"
         c.attribs["HAlign"] = "Center"
         properties = Control.find("ControlProperties")
@@ -310,8 +310,8 @@ class TextControl(Control):
 class Annotation(TextControl):
     component = "Label"
     @classmethod
-    def parse(cls, Control, depth, tab_depth):
-        c = super().parse(Control, depth, tab_depth)
+    def parse(cls, Control, depth, tab_depth, tab):
+        c = super().parse(Control, depth, tab_depth, tab)
         comp_props = Control.find('.//ComplexProperties[@Tag="HProAnnotation"]')
         assert comp_props, "Annotation " + c.name + " Missing HProAnnotation ComplexProperties"
         textlines = comp_props.find("TextLines")
@@ -331,8 +331,8 @@ class Annotation(TextControl):
 @dataclass
 class ParameterControl(Control):
     @classmethod
-    def parse(cls, Control, depth, tab_depth):
-        c = super().parse(Control, depth, tab_depth)
+    def parse(cls, Control, depth, tab_depth, tab):
+        c = super().parse(Control, depth, tab_depth, tab)
         comp_props = Control.find('.//ComplexProperties[@Tag="HProSVControl"]')
         assert comp_props, "ParameterControl " + c.name + " Missing HProSVControl ComplexProperties"
         statevariable = comp_props.find("./StateVariableItems/StateVariableItem")
@@ -343,6 +343,8 @@ class ParameterControl(Control):
             obj_id = int(statevariable.attrib["ObjID"])
             param_id = int(statevariable.attrib["svID"])
             c.attribs["parameter"] = param_str(node, v_device, obj_id, param_id)
+            if tab is not None:
+                c.attribs["subscribe_tab"] = tab
             c.attribs["svClass"] = statevariable.attrib["SVClassID"]
         else:
             c.attribs["parameter"] = "none"
@@ -352,8 +354,8 @@ class ParameterControl(Control):
 class LED(ParameterControl):
     component = "LED"
     @classmethod
-    def parse(cls, Control, depth, tab_depth):
-        c = super().parse(Control, depth, tab_depth)
+    def parse(cls, Control, depth, tab_depth, tab):
+        c = super().parse(Control, depth, tab_depth, tab)
         comp_props = Control.find('.//ComplexProperties[@Tag="HProLEDColor"]')
         assert comp_props, "LED " + c.name + " Missing HProLEDColor ComplexProperties"
         min_max_list = comp_props.find("MinMaxList")
@@ -372,8 +374,8 @@ class LED(ParameterControl):
 class Rectangle(Control):
     component = "Rectangle"
     @classmethod
-    def parse(cls, Control, depth, tab_depth):
-        c = super().parse(Control, depth, tab_depth)
+    def parse(cls, Control, depth, tab_depth, tab):
+        c = super().parse(Control, depth, tab_depth, tab)
         c.attribs["Thickness"] = int(Control.attrib.get("Thickness", 2))
         c.attribs["Rounded"] = False
         c.attribs["Radius"] = 25
@@ -387,8 +389,8 @@ class Rectangle(Control):
 class ParamLabel(ParameterControl):
     component = "ParameterLabel"
     @classmethod
-    def parse(cls, Control, depth, tab_depth):
-        c = super().parse(Control, depth, tab_depth)
+    def parse(cls, Control, depth, tab_depth, tab):
+        c = super().parse(Control, depth, tab_depth, tab)
         c.attribs["VAlign"] = "Middle"
         c.attribs["HAlign"] = "Center"
         properties = Control.find("ControlProperties")
@@ -407,8 +409,8 @@ class ParamLabel(ParameterControl):
 class ComboBox(ParameterControl):
     component = "ComboBox"
     @classmethod
-    def parse(cls, Control, depth, tab_depth):
-        c = super().parse(Control, depth, tab_depth)
+    def parse(cls, Control, depth, tab_depth, tab):
+        c = super().parse(Control, depth, tab_depth, tab)
         comp_props = Control.find('.//ComplexProperties[@Tag="HProDiscreteControl"]')
         assert comp_props, "ComboBox " + c.name + " Missing HProDiscreteControl ComplexProperties"
         if comp_props.find("SVListOverride") is not None:
@@ -426,9 +428,9 @@ class ComboBox(ParameterControl):
 class OnOffButton(ParameterControl):
     component = "Button"
     @classmethod
-    def parse(cls, Control, depth, tab_depth):
+    def parse(cls, Control, depth, tab_depth, tab):
         global images
-        c = super().parse(Control, depth, tab_depth)
+        c = super().parse(Control, depth, tab_depth, tab)
         c.attribs["momentary"] = False
         comp_props = Control.find('.//ComplexProperties[@Tag="HProOnOffButton_1.1"]')
         assert comp_props, "Button " + c.name + " Missing HProDiscreteControl HProOnOffButton_1.1"
@@ -462,8 +464,8 @@ class OnOffButton(ParameterControl):
 class MomentaryButton(OnOffButton):
     component = "Button"
     @classmethod
-    def parse(cls, Control, depth, tab_depth):
-        c = super().parse(Control, depth, tab_depth)
+    def parse(cls, Control, depth, tab_depth, tab):
+        c = super().parse(Control, depth, tab_depth, tab)
         c.attribs["momentary"] = True
         return c
 
@@ -471,8 +473,8 @@ class MomentaryButton(OnOffButton):
 class SegMeter(ParameterControl):
     component = "SegMeter"
     @classmethod
-    def parse(cls, Control, depth, tab_depth):
-        c = super().parse(Control, depth, tab_depth)
+    def parse(cls, Control, depth, tab_depth, tab):
+        c = super().parse(Control, depth, tab_depth, tab)
         c.attribs["ticks"] = []
         comp_props = Control.find('.//ComplexProperties[@Tag="CustomScale"]')
         if comp_props is not None:
@@ -505,8 +507,8 @@ class SegMeter(ParameterControl):
 class Fader(ParameterControl):
     component = "Fader"
     @classmethod
-    def parse(cls, Control, depth, tab_depth):
-        c = super().parse(Control, depth, tab_depth)
+    def parse(cls, Control, depth, tab_depth, tab):
+        c = super().parse(Control, depth, tab_depth, tab)
         c.attribs["ticks"] = []
         comp_props = Control.find('.//ComplexProperties[@Tag="CustomScale"]')
         if comp_props is not None:
@@ -545,10 +547,10 @@ class Panel(Control):
     component = "TabBackground"
 
     @classmethod
-    def parse(cls, Control, depth, tab_depth):
-        c = super().parse(Control, depth, tab_depth)
+    def parse(cls, Control, depth, tab_depth, tab):
+        c = super().parse(Control, depth, tab_depth, tab)
         for subcontrol in Control.findall("Control"):
-            sc = parse_control(subcontrol, depth+1, tab_depth)
+            sc = parse_control(subcontrol, depth+1, tab_depth, tab)
             if sc is not None:
                 c.contents.append(sc)
         return c
@@ -568,7 +570,7 @@ control_types = {
     "HPRO.SDIG.Controls.HProSliderV": Fader
 }
 
-def parse_control(control, depth=0, tab_depth=0):
+def parse_control(control, depth=0, tab_depth=0, tab=None):
     global pages
     ctype = control.attrib.get("Type", None)
     if not ctype in control_types:
@@ -576,13 +578,13 @@ def parse_control(control, depth=0, tab_depth=0):
     ctrl = control_types.get(ctype, Control)
     assert ctrl != None, "Unknown control type: " + str(ctype)
     assert type(ctrl) != TabPage, "Unexpected Tab Page"
-    return ctrl.parse(control, depth, tab_depth)
+    return ctrl.parse(control, depth, tab_depth, tab)
 
 def parse_root_control(_images, control, depth=0, _tabsize=4):
     global images, pages, tabsize
     images = _images
     tabsize = _tabsize
-    return Panel.parse(control, depth, 0)
+    return Panel.parse(control, depth, 0, None)
 
 def total_pages():
     global pages

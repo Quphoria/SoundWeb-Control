@@ -5,12 +5,15 @@ import LoadingOverlay from 'react-loading-overlay-ts';
 
 import WebSocket from './Websocket'
 import PanelContents from '../PanelContents'
+import { tab_count } from '../PanelContents';
 
 class Tabs extends React.Component {
   constructor(props) {
     super(props);
     this.subtab = [];
     this.state = {connected: false};
+    this.lasttab = 0;
+    this.tab = 0;
   }
 
   messageEvent(event) {
@@ -33,7 +36,16 @@ class Tabs extends React.Component {
     document.addEventListener('soundweb_msg',
       this.messageEvent.bind(this),
       false);
-    document.dispatchEvent(new CustomEvent('soundweb_connected'));
+    document.dispatchEvent(new CustomEvent('soundweb_connected', {detail: {tab: this.tab}}));
+    this.lasttab = this.tab;
+  }
+
+  tabChanged() {
+    if (this.websocket?.readyState() === 1 && this.tab !== this.lasttab) {
+      this.websocket.sendMessage(JSON.stringify({type: "UNSUBSCRIBE_ALL"}));
+      document.dispatchEvent(new CustomEvent('soundweb_connected', {detail: {tab: this.tab}}));
+      this.lasttab = this.tab;
+    }
   }
 
   setupWebsocket() {
@@ -118,6 +130,17 @@ class Tabs extends React.Component {
     } = this.props.router;
     const { hiddenTabs } = this.props;
 
+    var home_tab = 0;
+    for (home_tab = 0; home_tab < tab_count; home_tab++) {
+      if (!(hiddenTabs && hiddenTabs.includes(String(home_tab)))) {
+        break;
+      }
+    }
+    this.tab = query.tab == null ? String(home_tab) : query.tab;
+    
+    // This will check if the tab has changed, and then send the relevant update messages if so
+    this.tabChanged();
+
     return (
       <div>
         <Head>
@@ -135,7 +158,7 @@ class Tabs extends React.Component {
             }
           }}
           >
-          <PanelContents query={query} pathname={pathname} setSubtab={this.setSubtab.bind(this)} subtab={this.subtab} hiddenTabs={hiddenTabs} />
+          <PanelContents selected_tab={this.tab} pathname={pathname} setSubtab={this.setSubtab.bind(this)} subtab={this.subtab} hiddenTabs={hiddenTabs} />
         </LoadingOverlay>
       </div>
     );

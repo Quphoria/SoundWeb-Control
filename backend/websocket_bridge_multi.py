@@ -3,8 +3,9 @@ from janus import Queue
 import json, hmac, hashlib, time
 from config import load_config
 from concurrent.futures import ThreadPoolExecutor
-from websocket_server import WebsocketServer
+from functools import partial
 
+from websocket_server import WebsocketServer
 from soundweb_proto import MessageType, Packet, meter_value_db, decode_packets, DecodeFailed
 from soundweb_client import SoundWebThread
 
@@ -22,6 +23,19 @@ param_cache = {}
 
 client_thread_status = {}
 
+def should_send(client, msg=None):
+    if msg is None:
+        return True
+    if not "parameter" in msg:
+        return True
+    addr = client.get("address", "")
+    if not addr:
+        return True
+    if not addr in WS_USER_DATA:
+        return False
+    _, _, user_sub = WS_USER_DATA[addr]
+    return msg["parameter"] in user_sub
+
 async def resp_broadcast(node: str):
     global param_cache, param_cache_lock, ws_server, WEBSOCKET_LIST
     while True:
@@ -31,8 +45,9 @@ async def resp_broadcast(node: str):
             with param_cache_lock:
                 param_cache[msg["parameter"]] = json.dumps(msg)
         data = json.dumps(msg)
-        if WEBSOCKET_LIST:
-            ws_server.send_message_to_list(WEBSOCKET_LIST, data)
+        SEND_LIST = filter(partial(should_send, msg=msg), WEBSOCKET_LIST)
+        if SEND_LIST:
+            ws_server.send_message_to_list(SEND_LIST, data)
 
 def get_packet_node_handler(p: Packet) -> str:
     global config
@@ -80,7 +95,7 @@ def close_ws_client(client, server):
 
 def ws_on_data_receive(client, server, message):
     global WEBSOCKET_LIST, WS_USER_DATA, WS_DATA_LOCK
-    user_data, user_options = WS_USER_DATA.get(client["address"], (None, None))
+    user_data, user_options, user_subs = WS_USER_DATA.get(client["address"], (None, None, None))
     if user_data is None:
         # close websocket if auth token invalid
         auth_valid, user_data = check_auth_token_hmac(message)
@@ -89,7 +104,7 @@ def ws_on_data_receive(client, server, message):
             return
         user_options = user_data.get("options", {})
         with WS_DATA_LOCK:
-            WS_USER_DATA[client["address"]] = (user_data, user_options)
+            WS_USER_DATA[client["address"]] = (user_data, user_options, [])
             if not user_options.get("status", False):
                 WEBSOCKET_LIST.append(client)
         # send __test__ to acknowledge websocket auth
@@ -114,29 +129,43 @@ def ws_on_data_receive(client, server, message):
             }))
     elif not user_options.get("statusonly", False):
         try:
-            p = Packet.from_json(json.loads(message))
-            sub_handler_node = get_packet_node_handler(p)
-            # print(p, flush=True)
-            sent_value = False
-            if p.message_type == MessageType.SUBSCRIBE or p.message_type == MessageType.SUBSCRIBE_PERCENT:
-                p.value = config["subscription_rate_ms"]
-                for sub in subscribed_params[sub_handler_node]:
-                    if sub.param_str() == p.param_str() and sub.message_type == p.message_type:
-                        if p.param_str() in param_cache: # avoid resubscribing to parameters if value cached
-                            server.send_message(client, param_cache[p.param_str()])
-                            sent_value = True
-                        else:
-                            subscribed_params[sub_handler_node].remove(sub)
-                if not sent_value: # avoid resubscribing to parameters
-                    subscribed_params[sub_handler_node].append(p)
-                    subscribe_queues[sub_handler_node].sync_q.put(p)
-            elif p.message_type == MessageType.UNSUBSCRIBE or p.message_type == MessageType.UNSUBSCRIBE_PERCENT:
-                for sub in subscribed_params[sub_handler_node]:
-                    if sub.param_str() == p.param_str() and sub.message_type == p.message_type:
-                        subscribed_params[sub_handler_node].remove(sub)
-                subscribe_queues[sub_handler_node].sync_q.put(p)
+            data = json.loads(message)
+            if data.get("type", "") == "UNSUBSCRIBE_ALL":
+                user_subs = []
+                with WS_DATA_LOCK:
+                    WS_USER_DATA[client["address"]] = (user_data, user_options, user_subs)
             else:
-                msg_queue.sync_q.put(p)
+                p = Packet.from_json(json.loads(message))
+                sub_handler_node = get_packet_node_handler(p)
+                # print(p, flush=True)
+                sent_value = False
+                if p.message_type == MessageType.SUBSCRIBE or p.message_type == MessageType.SUBSCRIBE_PERCENT:
+                    p.value = config["subscription_rate_ms"]
+                    for sub in subscribed_params[sub_handler_node]:
+                        if sub.param_str() == p.param_str() and sub.message_type == p.message_type:
+                            if p.param_str() in param_cache: # avoid resubscribing to parameters if value cached
+                                server.send_message(client, param_cache[p.param_str()])
+                                sent_value = True
+                            else:
+                                subscribed_params[sub_handler_node].remove(sub)
+                    if not sent_value: # avoid resubscribing to parameters
+                        subscribed_params[sub_handler_node].append(p)
+                        subscribe_queues[sub_handler_node].sync_q.put(p)
+                    if p.param_str not in user_subs:
+                        user_subs.append(p.param_str())
+                        with WS_DATA_LOCK:
+                            WS_USER_DATA[client["address"]] = (user_data, user_options, user_subs)
+                elif p.message_type == MessageType.UNSUBSCRIBE or p.message_type == MessageType.UNSUBSCRIBE_PERCENT:
+                    for sub in subscribed_params[sub_handler_node]:
+                        if sub.param_str() == p.param_str() and sub.message_type == p.message_type:
+                            subscribed_params[sub_handler_node].remove(sub)
+                    subscribe_queues[sub_handler_node].sync_q.put(p)
+                    if p.param_str() in user_subs:
+                        user_subs.remove(p.param_str())
+                        with WS_DATA_LOCK:
+                            WS_USER_DATA[client["address"]] = (user_data, user_options, user_subs)
+                else:
+                    msg_queue.sync_q.put(p)
         except (json.JSONDecodeError, DecodeFailed) as ex:
             print("Failed to decode:", ex, ":", message, flush=True)
 
