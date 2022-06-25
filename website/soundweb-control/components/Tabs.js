@@ -42,13 +42,7 @@ class Tabs extends React.Component {
 
   tabChanged() {
     if (this.websocket?.readyState() === 1 && this.tab !== this.lasttab) {
-      this.websocket.sendMessage(JSON.stringify({
-        detail: {
-          type: "UNSUBSCRIBE",
-          parameter: "all",
-          value: 0
-        }
-      }));
+      this.websocket.sendMessage(JSON.stringify({type: "UNSUBSCRIBE_ALL"}));
       document.dispatchEvent(new CustomEvent('soundweb_connected', {detail: {tab: this.tab}}));
       this.lasttab = this.tab;
     }
