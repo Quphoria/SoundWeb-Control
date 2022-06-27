@@ -20,6 +20,7 @@ WS_USER_DATA = {}
 
 param_cache_lock = threading.Lock()
 param_cache = {}
+param_rebroadcast_time = 5 # 5 seconds
 
 client_thread_status = {}
 
@@ -41,10 +42,16 @@ async def resp_broadcast(node: str):
     while True:
         # Get a "work item" out of the queue.
         msg = await resp_queues[node].async_q.get()
+        data = json.dumps(msg)
         if msg["type"] == "SET":
             with param_cache_lock:
-                param_cache[msg["parameter"]] = json.dumps(msg)
-        data = json.dumps(msg)
+                t = time.time()
+                # check if value has stayed the same in the cache
+                if msg["parameter"] in param_cache and param_cache[msg["parameter"]][1] == data:
+                    # if it has not been the minimum rebroadcast time, don't bother resending the data
+                    if t - param_cache[msg["parameter"]][0] < param_rebroadcast_time:
+                        return
+                param_cache[msg["parameter"]] = (t, data)
         SEND_LIST = filter(partial(should_send, msg=msg), WEBSOCKET_LIST)
         if SEND_LIST:
             ws_server.send_message_to_list(SEND_LIST, data)
@@ -112,7 +119,7 @@ def ws_on_data_receive(client, server, message):
         # if not user_options.get("status", False):
         #     # we don't need to send the entire param_cache as the values will get sent when the client subscribes to them
         #     for p in param_cache.values():
-        #         server.send(client, p)
+        #         server.send(client, p[1])
     elif message == "__test__":
         server.send_message(client, "__test__")
     elif message == "status":
@@ -144,7 +151,7 @@ def ws_on_data_receive(client, server, message):
                     for sub in subscribed_params[sub_handler_node]:
                         if sub.param_str() == p.param_str() and sub.message_type == p.message_type:
                             if p.param_str() in param_cache: # avoid resubscribing to parameters if value cached
-                                server.send_message(client, param_cache[p.param_str()])
+                                server.send_message(client, param_cache[p.param_str()][1])
                                 sent_value = True
                             else:
                                 subscribed_params[sub_handler_node].remove(sub)
