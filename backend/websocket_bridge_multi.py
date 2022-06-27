@@ -248,7 +248,7 @@ async def main():
 if __name__ == "__main__":
     update_health(False) # set healthy to false when starting
     config = load_config("config/config.json")
-    print("HiQnet Websocket Proxy", os.environ.get('VERSION', "Unknown"))
+    print("HiQnet Websocket Proxy", VERSION)
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
