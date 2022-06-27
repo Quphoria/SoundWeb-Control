@@ -1,4 +1,4 @@
-import asyncio, os, threading
+import asyncio, os, sys, threading
 from janus import Queue
 import json, hmac, hashlib, time
 from config import load_config
@@ -26,8 +26,8 @@ client_thread_status = {}
 
 VERSION = ""
 try:
-    with open("VERSION", "r") as f:
-        VERSION = f.read()
+    with open(os.path.join(sys.path[0], 'VERSION'), "r") as f:
+        VERSION = f.read().strip()
 except:
     pass
 if VERSION == "":
