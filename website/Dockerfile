@@ -29,7 +29,7 @@ RUN dos2unix docker-entrypoint.sh
 RUN mkdir /data
 
 ARG VERSION
-ENV VERSION=${VERSION}
+RUN echo ${VERSION} >> /app/VERSION
 
 EXPOSE 3000
 

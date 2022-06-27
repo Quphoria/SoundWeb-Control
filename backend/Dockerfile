@@ -9,7 +9,7 @@ COPY ./ .
 RUN pip3 install -r requirements.txt
 
 ARG VERSION
-ENV VERSION=${VERSION}
+RUN echo ${VERSION} >> /app/VERSION
 
 EXPOSE 8765
 

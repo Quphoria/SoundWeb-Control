@@ -24,6 +24,15 @@ param_rebroadcast_time = 5 # 5 seconds
 
 client_thread_status = {}
 
+VERSION = ""
+try:
+    with open("VERSION", "r") as f:
+        VERSION = f.read()
+except:
+    pass
+if VERSION == "":
+    VERSION = "Unknown"
+
 def should_send(client, msg=None):
     if msg is None:
         return True
@@ -132,7 +141,7 @@ def ws_on_data_receive(client, server, message):
         if user_data.get("admin", False):
             server.send_message(client, json.dumps({
                 "type": "version",
-                "data": os.environ.get('VERSION', "Unknown")
+                "data": VERSION
             }))
     elif not user_options.get("statusonly", False):
         try:
