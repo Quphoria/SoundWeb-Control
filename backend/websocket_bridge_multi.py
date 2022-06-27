@@ -50,7 +50,7 @@ async def resp_broadcast(node: str):
                 if msg["parameter"] in param_cache and param_cache[msg["parameter"]][1] == data:
                     # if it has not been the minimum rebroadcast time, don't bother resending the data
                     if t - param_cache[msg["parameter"]][0] < param_rebroadcast_time:
-                        return
+                        continue
                 param_cache[msg["parameter"]] = (t, data)
         SEND_LIST = filter(partial(should_send, msg=msg), WEBSOCKET_LIST)
         if SEND_LIST:
