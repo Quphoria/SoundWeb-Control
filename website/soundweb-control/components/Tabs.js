@@ -123,6 +123,12 @@ class Tabs extends React.Component {
     }
   }
 
+  // This runs after render if something updated
+  componentDidUpdate() {
+    // This will check if the tab has changed, and then send the relevant update messages if so
+    this.tabChanged();
+  }
+
   render() {
     const {
       query,
@@ -137,9 +143,6 @@ class Tabs extends React.Component {
       }
     }
     this.tab = query.tab == null ? String(home_tab) : query.tab;
-    
-    // This will check if the tab has changed, and then send the relevant update messages if so
-    this.tabChanged();
 
     return (
       <div>
