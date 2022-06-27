@@ -1,6 +1,6 @@
 #!/bin/sh
 
-export VERSION=`cat /app/version || echo Unknown`
+export VERSION=`cat VERSION || echo Unknown`
 
 # expose version env variable to nextjs
 export NEXT_PUBLIC_VERSION=$VERSION
