@@ -151,7 +151,7 @@ class Tabs extends React.Component {
           <meta name="viewport" content="initial-scale=1.0, width=device-width" />
         </Head>
         <LoadingOverlay
-          active={!this.state.connected}
+          active={!this.state.connected && tab_count >= 0}
           spinner
           text='Connecting...'
           styles={{

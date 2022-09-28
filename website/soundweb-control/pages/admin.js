@@ -3,11 +3,13 @@ import Layout from "../layouts"
 import Link from "next/link"
 import redirect from 'nextjs-redirect'
 import Head from "next/head"
+import { useState } from "react"
 
 import useUser from "../lib/useUser"
 import { Padding, Rainbow } from "../styles"
 import UserManager from "../components/admin/UserManager"
 import BackendStatus from "../components/admin/BackendStatus"
+import UploadPanelDialog from "../components/admin/UploadPanelDialog"
 
 export async function getStaticProps () {
   // `getStaticProps` is executed on the server side.
@@ -26,6 +28,7 @@ const Admin = props => {
     redirectTo: "/login",
     redirectQuery: true
   });
+  const [uploadPanelModalState, setUploadPanelModalState] = useState({show: false});
 
   // Server-render loading state
   if (!user) {
@@ -57,12 +60,24 @@ const Admin = props => {
           <title>SoundWeb Admin</title>
           <meta name="viewport" content="initial-scale=1.0, width=device-width" />
       </Head>
+      <UploadPanelDialog state={uploadPanelModalState} setState={setUploadPanelModalState} />
       <Padding>
         <h2>Admin</h2>
         <h4>Hello <Rainbow>{user.username}#{user.id}</Rainbow></h4>
         <BackendStatus websocket={websocket_uri} />
         <UserManager user={user} />
       </Padding>
+      <div style={{
+          marginTop: "auto",
+          padding: "0.5rem 1rem",
+          textAlign: "right",
+          fontSize: "0.8rem",
+          color: "aqua",
+          textDecoration: "underline",
+          cursor: "pointer"
+        }}>
+        <a onClick={() => setUploadPanelModalState({show: true})}>Upload Panel File</a>
+      </div>
     </Layout>
   )
 }

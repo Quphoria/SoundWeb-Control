@@ -3,9 +3,11 @@ import argparse
 import os
 import ntpath
 import base64
+import traceback
+import shutil
 
 from controls import parse_root_control, total_pages
-from builder import build_jsx
+from builder import build_jsx, build_error, build_nofile
 
 images = {}
 
@@ -66,5 +68,24 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     output_dir = args.output_dir
-    parse_panel(args.file)
-    print("Pages:", total_pages())
+    try:
+        parse_panel(args.file)
+        print("Pages:", total_pages())
+        shutil.copyfile(args.file, args.file + ".backup")
+    except FileNotFoundError:
+        print("No panel file found.")
+        build_nofile(output_dir)
+    except AssertionError as ex:
+        print(ex)
+        error_title = type(ex).__name__ + " while parsing panel file"
+        error_message = str(ex)
+        error_traceback = "\n".join(traceback.format_tb(ex.__traceback__))
+
+        build_error(error_title, error_message, error_traceback, output_dir)
+    except ET.ParseError as ex:
+        print("Invalid Panel XML: ParseError:", ex)
+        error_title = "Invalid Panel XML, file may not be a valid .panel file"
+        error_message = "Unable to parse Panel XML: ParseError: " + str(ex)
+        error_traceback = "\n".join(traceback.format_tb(ex.__traceback__))
+
+        build_error(error_title, error_message, error_traceback, output_dir)

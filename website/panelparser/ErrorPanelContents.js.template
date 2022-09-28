@@ -1,0 +1,26 @@
+import { Padding } from "./styles";
+
+export const tab_count = -1;
+
+function PanelContents(props) {
+  const error_title = String.raw`[ERROR_TITLE]`;
+  const error_message = String.raw`[ERROR_MESSAGE]`;
+  const error_traceback = String.raw`[ERROR_TRACEBACK]`;
+
+  return (
+    <Padding>
+      <h4>{error_title}</h4>
+      <pre><p>{error_message}</p></pre>
+
+      <div>Please follow the Getting Started guide at &nbsp;
+        <a href="https://github.com/Quphoria/SoundWeb-Control">https://github.com/Quphoria/SoundWeb-Control</a>
+      </div>
+
+      <br/>
+      <b>Traceback:</b><br/>
+      <pre><code>{error_traceback}</code></pre>
+    </Padding>
+  );
+}
+
+export default PanelContents;

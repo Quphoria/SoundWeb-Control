@@ -5,6 +5,7 @@ env
 
 # files
 *.panel
+*.panel.backup
 users.json
 PanelContents.js
 config.jsonc

@@ -118,8 +118,8 @@ class Control:
                     assert False, "Unexpected attribute type: " + value.__class__.__name__
                 s += " "
         except Exception as ex:
-            print("Error parsing attribute in: " + self.name)
-            raise ex
+            error_msg = type(ex).__name__ + " error while parsing attribute in: " + self.name
+            raise Exception(error_msg)
         return s
 
     def __str__(self) -> str:
@@ -414,9 +414,9 @@ class ComboBox(ParameterControl):
         comp_props = Control.find('.//ComplexProperties[@Tag="HProDiscreteControl"]')
         assert comp_props, "ComboBox " + c.name + " Missing HProDiscreteControl ComplexProperties"
         if comp_props.find("SVListOverride") is not None:
-            print(c.name, "values are from State Variable, unable to resolve names over HiQnet")
-            print("Please uncheck 'Label mirrors Value' in the ComboBox value list")
-            assert False, "ComboBox " + c.name + " missing values"
+            error_msg = f"{c.name} values are from State Variable, unable to resolve names over HiQnet\n"
+            error_msg += "Please uncheck 'Label mirrors Value' in the ComboBox value list\n"
+            assert False, error_msg + "ComboBox " + c.name + " missing values"
         UserList = comp_props.find("UserList")
         assert UserList != None, "ComboBox " + c.name + " Missing UserList"
         c.attribs["values"] = {}
