@@ -49,11 +49,9 @@ class SegMeter extends ControlElement {
     const temp_canvas = this.tempCanvasRef.current;
     const temp_context = temp_canvas.getContext('2d');
 
-    document.addEventListener('soundweb_data', (event) => {
-      if (event.detail.type == "SET" && event.detail.parameter == this.props.parameter) {
-        var value = this.parameterStateVariable().getPercentage(event.detail.value);
-        this.draw(context, temp_canvas, temp_context, value);
-      }
+    document.addEventListener('SWSET_' + this.props.parameter, (event) => {
+      var value = this.parameterStateVariable().getPercentage(event.detail);
+      this.draw(context, temp_canvas, temp_context, value);
     }, false);
     
     this.draw(context, temp_canvas, temp_context, 0);

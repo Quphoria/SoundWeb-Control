@@ -30,10 +30,8 @@ class ParameterLabel extends ControlElement {
   componentDidMount() {
     this.setState({ value: this.props.text });
     this.subscribeToParameter();
-    document.addEventListener('soundweb_data', (event) => {
-      if (event.detail.type == "SET" && event.detail.parameter == this.props.parameter) {
-        this.setState({ value: this.parameterValueToString(event.detail.value) });
-      }
+      document.addEventListener('SWSET_' + this.props.parameter, (event) => {
+      this.setState({ value: this.parameterValueToString(event.detail) });
     }, false);
   };
 

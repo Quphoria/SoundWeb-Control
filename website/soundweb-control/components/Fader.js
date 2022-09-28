@@ -43,19 +43,13 @@ class Fader extends ControlElement {
 
   componentDidMount() {
     this.subscribeToParameter();
-    document.addEventListener('soundweb_data', (event) => {
-      var range = undefined;
-      if (this.rangeRef) {
-        range = this.rangeRef.current;
-      }
-      if (event.detail.type == "SET" && event.detail.parameter == this.props.parameter) {
-        
-        if (!(range !== null && range.state !== undefined &&
-            range.state.draggedThumbIndex !== undefined &&
-            range.state.draggedThumbIndex !== -1)) {
-          // console.log(range.state.draggedThumbIndex)
-          this.setState({ values: [event.detail.value] });
-        }
+    document.addEventListener('SWSET_' + this.props.parameter, (event) => {
+      const range = this.rangeRef?.current;
+      if (!(range && range.state !== undefined &&
+          range.state.draggedThumbIndex !== undefined &&
+          range.state.draggedThumbIndex !== -1)) {
+        // console.log(range.state.draggedThumbIndex)
+        this.setState({ values: [event.detail] });
       }
     }, false);
   };

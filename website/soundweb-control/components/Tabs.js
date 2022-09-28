@@ -53,8 +53,13 @@ class Tabs extends React.Component {
       url: this.props.websocket,
       onMessage: (data) => {
         let result = JSON.parse(data);
-        const event = new CustomEvent('soundweb_data', { detail: result });
-        document.dispatchEvent(event);
+        if (result.type == "SET") {
+          const event = new CustomEvent('SWSET_' + result.parameter, { detail: result.value });
+          document.dispatchEvent(event);
+        } else {
+          const event = new CustomEvent('soundweb_data', { detail: result });
+          document.dispatchEvent(event);
+        }
       },
       // Dirty hack to use correct context in callback
       onOpen: (() => {

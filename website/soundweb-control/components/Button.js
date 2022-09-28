@@ -24,10 +24,8 @@ class Button extends ControlElement {
 
   componentDidMount() {
     this.subscribeToParameter();
-    document.addEventListener('soundweb_data', (event) => {
-      if (event.detail.type == "SET" && event.detail.parameter == this.props.parameter) {
-        this.setState({ value: this.parameterValueToString(event.detail.value) == this.props.onValue });
-      }
+    document.addEventListener('SWSET_' + this.props.parameter, (event) => {
+      this.setState({ value: this.parameterValueToString(event.detail) == this.props.onValue });
     }, false);
   };
 
