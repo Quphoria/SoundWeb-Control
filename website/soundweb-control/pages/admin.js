@@ -29,6 +29,7 @@ const Admin = props => {
     redirectQuery: true
   });
   const [uploadPanelModalState, setUploadPanelModalState] = useState({show: false});
+  const [backendStatusRestartCallback, setBackendStatusRestartCallback] = useState({callback: null});
 
   // Server-render loading state
   if (!user) {
@@ -64,7 +65,7 @@ const Admin = props => {
       <Padding>
         <h2>Admin</h2>
         <h4>Hello <Rainbow>{user.username}#{user.id}</Rainbow></h4>
-        <BackendStatus websocket={websocket_uri} />
+        <BackendStatus websocket={websocket_uri} setRestartCallback={setBackendStatusRestartCallback} />
         <UserManager user={user} />
       </Padding>
       <div style={{
@@ -72,11 +73,12 @@ const Admin = props => {
           padding: "0.5rem 1rem",
           textAlign: "right",
           fontSize: "0.8rem",
-          color: "aqua",
-          textDecoration: "underline",
           cursor: "pointer"
         }}>
-        <a onClick={() => setUploadPanelModalState({show: true})}>Upload Panel File</a>
+        <a onClick={backendStatusRestartCallback.callback}
+          style={{textDecoration: "underline", color: "var(--bs-danger)"}}>Restart Backend</a> &nbsp;&nbsp;
+        <a onClick={() => setUploadPanelModalState({show: true})}
+          style={{textDecoration: "underline", color: "var(--bs-info)"}}>Upload Panel File</a>
       </div>
     </Layout>
   )

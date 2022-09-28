@@ -17,6 +17,7 @@ ws_server = None
 WS_DATA_LOCK = threading.Lock()
 WEBSOCKET_LIST = []
 WS_USER_DATA = {}
+RUN_SERVER = True
 
 param_cache_lock = threading.Lock()
 param_cache = {}
@@ -110,7 +111,7 @@ def close_ws_client(client, server):
     server._terminate_client_handler(client["handler"])
 
 def ws_on_data_receive(client, server, message):
-    global WEBSOCKET_LIST, WS_USER_DATA, WS_DATA_LOCK
+    global WEBSOCKET_LIST, WS_USER_DATA, WS_DATA_LOCK, RUN_SERVER
     user_data, user_options, user_subs = WS_USER_DATA.get(client["address"], (None, None, None))
     if user_data is None:
         # close websocket if auth token invalid
@@ -143,6 +144,10 @@ def ws_on_data_receive(client, server, message):
                 "type": "version",
                 "data": VERSION
             }))
+    elif message == "restart":
+        if user_data.get("admin", False):
+            print(f"Restart attempted by {user_data['username']}")
+            RUN_SERVER = False
     elif not user_options.get("statusonly", False):
         try:
             data = json.loads(message)
@@ -205,11 +210,11 @@ def update_health(healthy: bool):
             f.write("1")
 
 async def health_check():
-    global client_thread_status
+    global client_thread_status, RUN_SERVER
     client_thread_status = {}
     if health_check_queue is None:
         return
-    while True:
+    while RUN_SERVER:
         # Get a "work item" out of the queue.
         status = await health_check_queue.async_q.get()
         client_thread_status[status["id"]] = status["status"]
@@ -220,7 +225,7 @@ async def health_check():
 soundweb_thread = None
 soundweb_subscribe_threads = []
 async def main():
-    global config, ws_server, msg_queue, resp_queues, subscribe_queues, soundweb_thread, soundweb_subscribe_threads, subscribed_params, health_check_queue
+    global config, ws_server, msg_queue, resp_queues, subscribe_queues, soundweb_thread, soundweb_subscribe_threads, subscribed_params, health_check_queue, RUN_SERVER
     msg_queue = Queue(200)
     health_check_queue = Queue(50)
     resp_queues = {key: Queue(200) for key in config["nodes"].keys()}
@@ -244,7 +249,14 @@ async def main():
     ws_server.set_fn_client_left(ws_on_connection_close)
     ws_server.set_fn_message_received(ws_on_data_receive)
     ws_server.run_forever(threaded=True)
-    await health_check()
+    health_task = asyncio.create_task(health_check())
+    while RUN_SERVER:
+        await asyncio.sleep(2)
+    health_task.cancel()
+    try:
+        await health_task
+    except asyncio.CancelledError:
+        pass
 
 if __name__ == "__main__":
     update_health(False) # set healthy to false when starting

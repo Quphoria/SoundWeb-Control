@@ -3,9 +3,12 @@ import { withRouter } from "next/router"
 
 import WebSocket from '../Websocket'
 
-class Tabs extends React.Component {
+class BackendStatus extends React.Component {
   constructor(props) {
     super(props);
+    if (this.props.setRestartCallback) {
+      this.props.setRestartCallback({callback: (() => {this.restartBackend()}).bind(this)});
+    }
     this.state = {connected: false, nodes: {}, version: "Unknown"};
   }
 
@@ -85,6 +88,13 @@ class Tabs extends React.Component {
     </div>)
   }
 
+  restartBackend() {
+    if (!this.state.connected) return;
+    if (confirm("Are you sure you want to restart the backend?\nTHIS WILL INTERRUPT ALL USERS CURRENTLY USING IT!!!")) {
+      this.websocket.sendMessage("restart");
+    }
+  }
+
   render() {
     const { connected, nodes, version } = this.state;
 
@@ -112,7 +122,7 @@ class Tabs extends React.Component {
               display: "inline-block",
               paddingLeft: "1em",
               whiteSpace: "nowrap"
-            }}>
+            }} key={node}>
               {status ? "✔️" : "❌"}{node}
             </div>
           ))}
@@ -130,4 +140,4 @@ class Tabs extends React.Component {
   }
 }
 
-export default withRouter(Tabs)
+export default withRouter(BackendStatus)

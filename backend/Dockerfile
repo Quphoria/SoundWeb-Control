@@ -15,4 +15,4 @@ EXPOSE 8765
 
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
   CMD python3 healthcheck.py
-ENTRYPOINT ["python3", "websocket_bridge_multi.py"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
