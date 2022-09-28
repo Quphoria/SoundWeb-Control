@@ -166,7 +166,8 @@ def ws_on_data_receive(client, server, message):
                                 subscribed_params[sub_handler_node].remove(sub)
                     if not sent_value: # avoid resubscribing to parameters
                         subscribed_params[sub_handler_node].append(p)
-                        subscribe_queues[sub_handler_node].sync_q.put(p)
+                        # subscribe_queues[sub_handler_node].sync_q.put(p)
+                    subscribe_queues[sub_handler_node].sync_q.put(p) # resubscribe (sometimes soundweb forgets about us i think)
                     if p.param_str not in user_subs:
                         user_subs.append(p.param_str())
                         with WS_DATA_LOCK:
