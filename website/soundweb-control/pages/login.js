@@ -6,7 +6,7 @@ import Layout from "../layouts"
 import LoginForm from "../components/LoginForm";
 import fetchJson, { FetchError } from "../lib/fetchJson";
 import useUser from "../lib/useUser";
-import { Padding, Spacer } from "../styles";
+import { Rainbow, Padding, Spacer } from "../styles";
 
 
 const Login = props => {
@@ -29,6 +29,9 @@ const Login = props => {
         alignItems: "center",
         justifyContent: "center"
       }}>
+        <h1 className="title">
+          <Rainbow>SoundWeb</Rainbow>
+        </h1>
         <div className="login">
           <LoginForm
             errorMessage={errorMsg}

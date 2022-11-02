@@ -149,7 +149,7 @@ const Layout = ({ children }) => {
         <p
           style={{fontSize: "0.8em"}}
         >
-          2022 © <a href="https://github.com/Quphoria" style={{color: "inherit"}}>Samuel Simpson</a>, All rights reserved
+          2022{new Date().getFullYear() > 2022 ? "-" + new Date().getFullYear() : ""} © <a href="https://github.com/Quphoria" style={{color: "inherit"}}>Samuel Simpson</a>, All rights reserved
         </p>
       </Footer>
     </React.Fragment>
