@@ -187,7 +187,7 @@ def ws_on_data_receive(client, server, message):
                         with WS_DATA_LOCK:
                             WS_USER_DATA[client["address"]] = (user_data, user_options, user_subs)
                 else:
-                    msg_queue.sync_q.put(p)
+                    msg_queues[sub_handler_node].sync_q.put(p)
         except (json.JSONDecodeError, DecodeFailed) as ex:
             print("Failed to decode:", ex, ":", message, flush=True)
 
@@ -222,22 +222,31 @@ async def health_check():
         healthy = all(s for s in client_thread_status.values())
         update_health(healthy)
 
+def get_node_alias(n):
+    global config
+    # Return the alias or just the node id
+    return config["node_names"].get(n, n)
+
 soundweb_thread = None
 soundweb_subscribe_threads = []
 async def main():
-    global config, ws_server, msg_queue, resp_queues, subscribe_queues, soundweb_thread, soundweb_subscribe_threads, subscribed_params, health_check_queue, RUN_SERVER
-    msg_queue = Queue(200)
+    global config, ws_server, msg_queues, resp_queues, subscribe_queues, soundweb_msg_threads, soundweb_subscribe_threads, subscribed_params, health_check_queue, RUN_SERVER
     health_check_queue = Queue(50)
+    msg_queues = {key: Queue(200) for key in config["nodes"].keys()}
     resp_queues = {key: Queue(200) for key in config["nodes"].keys()}
     subscribe_queues = {key: Queue(200) for key in config["nodes"].keys()}
     soundweb_ip = config["nodes"]["default"]
     subscribed_params = {key: list() for key in config["nodes"].keys()}
+    sync_timeout = config["sync_thread_timeout_s"]
 
-    soundweb_thread = SoundWebThread("SoundWeb Message Thread", "Message (default)", soundweb_ip, 1023, msg_queue, None, None, health_check_queue)
-    soundweb_subscribe_threads = {
-        key: SoundWebThread(f"SoundWeb {key} Sync Thread", key, ip, 1023, subscribe_queues[key], resp_queues[key], subscribed_params[key], health_check_queue)
+    soundweb_msg_threads = {
+        key: SoundWebThread(f"SoundWeb {key} Message Thread", "M: "+get_node_alias(key), ip, 1023, msg_queues[key], None, None, health_check_queue)
         for key, ip in config["nodes"].items()}
-    soundweb_thread.start()
+    soundweb_subscribe_threads = {
+        key: SoundWebThread(f"SoundWeb {key} Sync Thread", "S: "+get_node_alias(key), ip, 1023, subscribe_queues[key], resp_queues[key], subscribed_params[key], health_check_queue, sync_timeout)
+        for key, ip in config["nodes"].items()}
+    for t in soundweb_msg_threads.values():
+        t.start()
     for t in soundweb_subscribe_threads.values():
         t.start()
     print(f"Websocket server listening on ws://0.0.0.0:{config['websocket_port']}", flush=True)
@@ -268,17 +277,20 @@ if __name__ == "__main__":
         pass
     print("Exiting...")
 
-    if soundweb_thread:
-        soundweb_thread.exitFlag = True
-        soundweb_thread.join()
+    for t in soundweb_msg_threads.values():
+        t.exitFlag = True
+    for t in soundweb_msg_threads.values():
+        t.join()
     if ws_server:
         ws_server.shutdown_gracefully()
         # should figure out how to get thread to exit, but thread is daemonized so will get killed when program exits
     for t in soundweb_subscribe_threads.values():
         t.exitFlag = True
+    for t in soundweb_subscribe_threads.values():
         t.join()
 
-    msg_queue.close()
+    for q in msg_queues.values():
+        q.close()
     for q in resp_queues.values():
         q.close()
     for q in subscribe_queues.values():

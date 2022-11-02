@@ -28,6 +28,7 @@ class SoundWebClientProtocol(asyncio.Protocol):
         self.send_task = loop.create_task(self.send_messages())
         self.transport = None
         self.read_buffer = b""
+        self.last_time = 0
 
     def end_connection(self):
         self.send_task.cancel()
@@ -50,6 +51,9 @@ class SoundWebClientProtocol(asyncio.Protocol):
             if p:
                 # print("O", p, flush=True)
                 self.transport.write(p.encode())
+                # Only start timeout once we have at least 1 subscription
+                if p.message_type in [MessageType.SUBSCRIBE, MessageType.SUBSCRIBE_PERCENT]:
+                    self.last_time = time.time()
 
     def connection_test_packet(self, transport):
         # this packet gives no response and doesn't make soundweb kill the connection
@@ -68,8 +72,10 @@ class SoundWebClientProtocol(asyncio.Protocol):
         # clear read buffer
         self.read_buffer = b""
         self._ready.set()
-
+        
     def data_received(self, data):
+        if self.last_time > 0: # Only reset timer if its started
+            self.last_time = time.time()
         if not self.resp_queue:
             return
         packets, self.read_buffer = decode_packets(self.read_buffer + data)
@@ -89,7 +95,7 @@ class SoundWebClientProtocol(asyncio.Protocol):
         self.loop.stop()
 
 class SoundWebThread(threading.Thread):
-    def __init__(self, name: str, h_id: str, soundweb_ip: str, soundweb_port: int, msg_queue: Queue, resp_queue: Queue, subscribed_params: list, health_check_queue: Queue):
+    def __init__(self, name: str, h_id: str, soundweb_ip: str, soundweb_port: int, msg_queue: Queue, resp_queue: Queue, subscribed_params: list, health_check_queue: Queue, sync_timeout_rate: int = 0):
         super().__init__(daemon=True)
         self.name = name
         self.h_id = h_id
@@ -101,6 +107,8 @@ class SoundWebThread(threading.Thread):
         self.subscribed_params = subscribed_params
         self.health_queue.sync_q.put({"id": self.h_id, "status": False})
         self.exitFlag = False
+        self.sync_timeout_rate = sync_timeout_rate
+        self.fast_reconnect = False
     async def createClient(self, loop):
         if self.resp_queue:
             transport, protocol = await loop.create_connection(
@@ -121,6 +129,11 @@ class SoundWebThread(threading.Thread):
             if n >= 10:
                 n = 0
                 protocol.connection_test_packet(transport)
+            # check how long since last message
+            if self.sync_timeout_rate > 0 and protocol.last_time > 0:
+                if time.time() - protocol.last_time > self.sync_timeout_rate:
+                    self.fast_reconnect = True
+                    break
         transport.close()
         # cancel send task
         protocol.send_task.cancel()
@@ -131,6 +144,7 @@ class SoundWebThread(threading.Thread):
     def run(self):
         print(self.name, "started", flush=True)
         while not self.exitFlag:
+            self.fast_reconnect = False
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
@@ -142,9 +156,13 @@ class SoundWebThread(threading.Thread):
                 print(self.name, "Error:", ex, flush=True)
                 self.health_queue.sync_q.put({"id": self.h_id, "status": False})
             if not self.exitFlag:
-                print(self.name, "Disconnected from SoundWeb, Reconnecting in 5 seconds", flush=True)
-                for i in range(5):
-                    if self.exitFlag:
-                        break
-                    time.sleep(1)
+                if self.fast_reconnect:
+                    print(self.name, "Subscription thread timeout, Reconnecting now", flush=True)
+                    time.sleep(0.5)
+                else:
+                    print(self.name, "Disconnected from SoundWeb, Reconnecting in 5 seconds", flush=True)
+                    for i in range(5):
+                        if self.exitFlag:
+                            break
+                        time.sleep(1)
         print(self.name, "exited", flush=True)
