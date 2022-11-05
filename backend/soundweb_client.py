@@ -74,11 +74,12 @@ class SoundWebClientProtocol(asyncio.Protocol):
         self._ready.set()
         
     def data_received(self, data):
-        if self.last_time > 0: # Only reset timer if its started
-            self.last_time = time.time()
         if not self.resp_queue:
             return
         packets, self.read_buffer = decode_packets(self.read_buffer + data)
+        if packets:
+            if self.last_time > 0: # Only reset timer if its started and we get correctly formed packets
+                self.last_time = time.time()
         for p in packets:
             # print(p, flush=True)
             # print(p, meter_value_db(p.value), flush=True)
