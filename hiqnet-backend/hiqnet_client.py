@@ -245,7 +245,7 @@ class HiQnetUDPListenerThread(threading.Thread):
                 while not self.exitFlag:
                     try:
                         data = s.recv(RX_MSG_SIZE)
-                    except TimeoutError:
+                    except (TimeoutError, socket.timeout):
                         continue
 
                     if not data:
