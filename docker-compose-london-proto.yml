@@ -14,11 +14,10 @@ services:
         max-file: "1"
     restart: unless-stopped
 
-  hiqnet-websocket-proxy:
-    image: quphoria/hiqnet-websocket-proxy
+  soundweb-london-websocket-proxy:
+    image: quphoria/soundweb-london-websocket-proxy
     ports:
       - "8765:8765/tcp"
-      - "3804:3804/udp"
     volumes:
       - ./data/backend:/app/config
     logging:
