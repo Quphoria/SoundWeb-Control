@@ -4,6 +4,7 @@ import json, hmac, hashlib, time
 from config import load_config
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
+import socket, uuid
 
 from websocket_server import WebsocketServer
 from hiqnet_proto import *
@@ -241,6 +242,43 @@ def get_node_alias(n):
     # Return the alias or just the node id
     return config["node_names"].get(n, n)
 
+def test_udp_receive(bind_ip, hiqnet_port, dest_ip):
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.bind((bind_ip, hiqnet_port))
+    s.settimeout(1)
+
+    seq_cache = {}
+
+    s2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s2.settimeout(1)
+
+    test_str = str(uuid.uuid4()).encode()
+
+    s2.sendto(test_str, (dest_ip, hiqnet_port))
+
+    try:
+        for i in range(10): # allow 10 timeouts before failing
+            try:
+                while True: # keep receiving until timeout occurs, we may be getting flooded with packets
+                    data = s.recv(1024)
+                    if data == test_str:
+                        s.close()
+                        s2.close()
+                        print("UDP test passed")
+                        return True
+            except (TimeoutError, socket.timeout):
+                continue
+            time.sleep(1)
+    except Exception as ex:
+        print("Error testing UDP receive:", ex)
+    finally:
+        s.close()
+        s2.close()
+    print("Failed to receive UDP message sent to itself!")
+    print(f"Please check that the server_ip_address (& related) config values are correct and UDP port {hiqnet_port} is accessible at this IP")
+    return False
+
+
 hiqnet_udp_thread = None
 hiqnet_tcp_threads = []
 UDP_NODE_ID = "UDP"
@@ -251,6 +289,10 @@ async def main():
     resp_queues = {key: Queue(200) for key in config["nodes"].keys()}
     resp_queues[UDP_NODE_ID] = Queue(200)
     subscribed_params = {key: list() for key in config["nodes"].keys()}
+
+    # check UDP works
+    if not test_udp_receive("0.0.0.0", HIQNET_PORT, config["server_ip_address"]):
+        return
 
     MY_ADDRESS.device = int(config["server_node_address"], base=16)
     network_info = NetworkInfo(
@@ -300,17 +342,21 @@ if __name__ == "__main__":
         pass
     print("Exiting...")
 
-    for t in hiqnet_tcp_threads.values():
-        t.exitFlag = True
-    for t in hiqnet_tcp_threads.values():
-        t.join()
+    if hiqnet_tcp_threads:
+        for t in hiqnet_tcp_threads.values():
+            t.exitFlag = True
+        for t in hiqnet_tcp_threads.values():
+            t.join()
     if ws_server:
         ws_server.shutdown_gracefully()
         # should figure out how to get thread to exit, but thread is daemonized so will get killed when program exits
-    hiqnet_udp_thread.exitFlag = True
-    hiqnet_udp_thread.join()
+    if hiqnet_udp_thread:
+        hiqnet_udp_thread.exitFlag = True
+        hiqnet_udp_thread.join()
 
-    for q in msg_queues.values():
-        q.close()
-    for q in resp_queues.values():
-        q.close()
+    if msg_queues:
+        for q in msg_queues.values():
+            q.close()
+    if resp_queues:
+        for q in resp_queues.values():
+            q.close()
