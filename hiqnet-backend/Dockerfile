@@ -14,6 +14,7 @@ ARG VERSION
 RUN echo ${VERSION} >> /app/VERSION
 
 EXPOSE 8765
+EXPOSE 3804
 
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
   CMD python3 healthcheck.py
