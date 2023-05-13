@@ -13,7 +13,10 @@ RUN pip3 install -r requirements.txt
 ARG VERSION
 RUN echo ${VERSION} >> /app/VERSION
 
+# websocket port
 EXPOSE 8765
+
+# hiqnet port
 EXPOSE 3804
 
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
