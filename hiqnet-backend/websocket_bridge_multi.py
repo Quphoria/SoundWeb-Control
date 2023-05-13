@@ -243,12 +243,12 @@ def get_node_alias(n):
     return config["node_names"].get(n, n)
 
 def test_udp_receive(bind_ip, hiqnet_port, dest_ip):
+    # server socket
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.bind((bind_ip, hiqnet_port))
     s.settimeout(1)
 
-    seq_cache = {}
-
+    # test client socket
     s2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s2.settimeout(1)
 
