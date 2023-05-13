@@ -5,7 +5,6 @@ class MyDocument extends Document {
     return (
       <Html>
         <Head>
-          <link href="//db.onlinewebfonts.com/c/2442df04682466647c9b737e374dd1ef?family=Microsoft+Sans+Serif" rel="stylesheet" type="text/css"/>
         </Head>
         <body>
           <Main />

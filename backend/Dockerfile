@@ -6,6 +6,8 @@ WORKDIR /app
 
 COPY ./ .
 
+RUN dos2unix docker-entrypoint.sh
+
 RUN pip3 install -r requirements.txt
 
 ARG VERSION
