@@ -70,10 +70,11 @@ async def resp_broadcast(node: str):
             ws_server.send_message_to_list(SEND_LIST, data)
 
 def get_packet_node_handler(p: Packet) -> str:
-    global config
+    global config, nodes
     if hex(p.node) in config["nodes"]:
         return hex(p.node)
-    return "default"
+    print(f"Node {hex(p.node)} not available, please add a config entry for it")
+    return None
 
 previous_tokens = {}
 
@@ -161,6 +162,8 @@ def ws_on_data_receive(client, server, message):
             else:
                 p = Packet.from_json(json.loads(message))
                 sub_handler_node = get_packet_node_handler(p)
+                if sub_handler_node is None:
+                    return
                 # print(p, flush=True)
                 sent_value = False
                 if p.message_type == MessageType.SUBSCRIBE or p.message_type == MessageType.SUBSCRIBE_PERCENT:
