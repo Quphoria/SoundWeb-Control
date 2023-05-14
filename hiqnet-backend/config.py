@@ -12,7 +12,7 @@ def default_config() -> Dict[str, Any]:
         "server_subnet_mask": "255.255.255.0",
         "server_gateway": "192.168.1.1",
         "server_mac_address": "AA:BB:CC:DD:EE:FF",
-        "server_node_address": "0xfa00",
+        "server_node_address": "0xfb00",
     }
 
 def check_list_type(l: list, v_type) -> bool:
