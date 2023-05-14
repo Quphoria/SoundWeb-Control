@@ -495,9 +495,9 @@ class SegMeter(ParameterControl):
             c.attribs["Sec2Threshold"] = properties.find("Sec2Threshold").text
             c.attribs["Sec3Threshold"] = properties.find("Sec3Threshold").text
             if c.attribs["Sec2Threshold"] is None:
-                c.attribs["Sec2Threshold"] = 1
+                c.attribs["Sec2Threshold"] = 0.5
             if c.attribs["Sec3Threshold"] is None:
-                c.attribs["Sec3Threshold"] = 1
+                c.attribs["Sec3Threshold"] = 0.75
             c.attribs["gapSize"] = int(properties.find("SegSpacing").text)
             c.attribs["segments"] = int(properties.find("SegmentCount").text)
             c.attribs["segment_width"] = int(properties.find("SegWidth").text)
