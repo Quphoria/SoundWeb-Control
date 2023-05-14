@@ -309,7 +309,7 @@ async def main():
     hiqnet_tcp_threads = {
         key: HiQnetThread(f"HiQnet {key} TCP Thread", get_node_alias(key), int(key, base=16), ip, HIQNET_PORT,msg_queues[key], resp_queues[key], subscribed_params[key], health_check_queue, disco_info)
         for key, ip in config["nodes"].items()}
-    hiqnet_udp_thread = HiQnetUDPListenerThread("HiQnet UDP Thread", UDP_NODE_ID, "0.0.0.0", HIQNET_PORT, resp_queues[UDP_NODE_ID], health_check_queue)
+    hiqnet_udp_thread = HiQnetUDPListenerThread("HiQnet UDP Thread", UDP_NODE_ID, "0.0.0.0", config["server_ip_address"], HIQNET_PORT, resp_queues[UDP_NODE_ID], health_check_queue)
     
     # start udp thread first to receive initial messages
     hiqnet_udp_thread.start()

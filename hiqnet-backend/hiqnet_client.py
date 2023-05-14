@@ -1,4 +1,4 @@
-import asyncore, asyncio, threading, time, functools, socket
+import asyncore, asyncio, threading, time, functools, socket, uuid
 from contextlib import suppress
 from janus import Queue, SyncQueue, SyncQueueEmpty
 import janus
@@ -6,6 +6,8 @@ import janus
 from hiqnet_proto import *
 
 RX_MSG_SIZE = 4096
+UDP_TEST_INTERVAL = 5 # 5 seconds
+UDP_MAX_FAIL_THRESHOLD = 12 # 60 seconds (5*12)
 
 SEQ_NUM_MIN_DIST = 0x1000
 SEQ_NUM_TIMEOUT = 10 # 10 seconds
@@ -220,11 +222,12 @@ class HiQnetThread(threading.Thread):
         print(self.name, "exited", flush=True)
 
 class HiQnetUDPListenerThread(threading.Thread):
-    def __init__(self, name: str, h_id: str, bind_ip: str, hiqnet_port: int, resp_queue: Queue, health_check_queue: Queue):
+    def __init__(self, name: str, h_id: str, bind_ip: str, server_ip: str, hiqnet_port: int, resp_queue: Queue, health_check_queue: Queue):
         super().__init__(daemon=True)
         self.name = name
         self.h_id = h_id
         self.bind_ip = bind_ip
+        self.server_ip = server_ip
         self.hiqnet_port = hiqnet_port
         self.resp_queue = resp_queue
         self.health_queue = health_check_queue
@@ -235,22 +238,53 @@ class HiQnetUDPListenerThread(threading.Thread):
         print(self.name, "started", flush=True)
         while not self.exitFlag:
             s = None
+            test_socket = None
+
+            udp_test_uuid = None
+            failed_tests = 0
+            last_test = 0
+
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 s.bind((self.bind_ip, self.hiqnet_port))
                 s.settimeout(1)
+                test_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                test_socket.settimeout(1)
                 self.health_queue.sync_q.put({"id": self.h_id, "status": True})
 
                 seq_cache = {}
 
                 while not self.exitFlag:
+                    # send test packet
+                    if time.time() - last_test > UDP_TEST_INTERVAL:
+                        last_test = time.time()
+                        if udp_test_uuid is None:
+                            if failed_tests != 0:
+                                self.health_queue.sync_q.put({"id": self.h_id, "status": True}) # update status
+                            failed_tests = 0
+                        else:
+                            print("UDP Test Packet Failed")
+                            if failed_tests == 0:
+                                self.health_queue.sync_q.put({"id": self.h_id, "status": False}) # update status
+                            failed_tests += 1
+                            if failed_tests >= UDP_MAX_FAIL_THRESHOLD:
+                                raise Exception(f"Failed {UDP_MAX_FAIL_THRESHOLD} Consecutive UDP Test Packets")
+                        udp_test_uuid = str(uuid.uuid4()).encode()
+                        test_socket.sendto(udp_test_uuid, (self.server_ip, self.hiqnet_port))
+
+                    # receive data
                     try:
                         data = s.recv(RX_MSG_SIZE)
                     except (TimeoutError, socket.timeout):
                         continue
 
-                    if not data:
+                    if not data: # socket closed??
                         break
+
+                    # check for test packet
+                    if udp_test_uuid and data == udp_test_uuid:
+                        udp_test_uuid = None
+                        continue
                     
                     msgs = decode_message(data)
                     for msg in msgs:
@@ -305,6 +339,11 @@ class HiQnetUDPListenerThread(threading.Thread):
                 if s:
                     try:
                         s.close()
+                    except:
+                        pass
+                if test_socket:
+                    try:
+                        test_socket.close()
                     except:
                         pass
 
