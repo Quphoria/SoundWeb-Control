@@ -425,7 +425,8 @@ class StateVariable {
         strAES += strHz;
         break;
       case StateVariable.Percentage.id:
-        strAES = this.MUL_FORMAT2(strPercent, 100.0, svValue, 0, bShort) + strPercent;
+        strAES = this.MUL_FORMAT2(strPercent, 100.0, svValue, 0, bShort);
+        strAES += strPercent;
         break;
       case StateVariable.FilterWidth.id:
         strAES = this.CustomFormat(strOct, svValue, nDecimalPlaces, bShort, Format);
@@ -579,6 +580,10 @@ class StateVariable {
         var num4 = this.dSVToDouble(svValue);
         strAES = FORMAT_VALUE(Format, num4 / 100.0, 2);
         strAES += strdBs;
+        break;
+      case StateVariable.RangedPercentage.id:
+        strAES = svValue.toString();
+        strAES += strPercent;
         break;
       default:
         strAES = svValue.toString();
