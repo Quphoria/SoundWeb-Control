@@ -234,6 +234,7 @@ class HiQnetUDPListenerThread(threading.Thread):
     def run(self):
         print(self.name, "started", flush=True)
         while not self.exitFlag:
+            s = None
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 s.bind((self.bind_ip, self.hiqnet_port))
@@ -250,15 +251,17 @@ class HiQnetUDPListenerThread(threading.Thread):
 
                     if not data:
                         break
-
+                    
                     msgs = decode_message(data)
                     for msg in msgs:
                         if type(msg) == DecodeFailed:
-                            print(self.name, "Decode Error:", ex)
+                            print(self.name, "Decode Error:", msg)
+                            continue
+                        if type(msg) == IncorrectDestination:
+                            print(self.name, "Incorrect Destination:", msg)
                             continue
 
                         if type(msg) in (MultiObjectParamSet, MultiParamSet, ParamSetPercent):
-                            print(msg.header.dest_address)
                             for p in Packet.from_msg(msg):
                                 if type(p) == UnsupportedMessage or type(p) == DecodeFailed:
                                     print(self.name, "Error decoding packet:", p)
@@ -297,8 +300,14 @@ class HiQnetUDPListenerThread(threading.Thread):
                 
             except Exception as ex:
                 print(self.name, "Error:", ex, flush=True)
-                raise ex
                 self.health_queue.sync_q.put({"id": self.h_id, "status": False})
+            finally:
+                if s:
+                    try:
+                        s.close()
+                    except:
+                        pass
+
             if not self.exitFlag:
                 print(self.name, "HiQnet UDP listener thread stopped, Restarting in 5 seconds", flush=True)
                 for i in range(5):

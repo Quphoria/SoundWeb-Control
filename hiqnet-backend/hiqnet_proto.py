@@ -6,6 +6,9 @@ import struct, re
 class DecodeFailed(Exception):
     pass
 
+class IncorrectDestination(Exception):
+    pass
+
 class EncodeFailed(Exception):
     pass
 
@@ -167,7 +170,7 @@ class HiQnetHeader:
         source_addr = HiQnetAddress.decode(header[4:10])
         dest_addr = HiQnetAddress.decode(header[10:16])
         if dest_addr.device != MY_ADDRESS.device and not dest_addr.is_broadcast():
-            raise DecodeFailed(f"Incorrect destination address {dest_addr}")
+            raise IncorrectDestination(f"Incorrect destination address {dest_addr}")
 
         message_id = int.from_bytes(header[16:18], "big")
         try:
@@ -228,7 +231,11 @@ class HiQnetMessage:
 def decode_message(data) -> List[HiQnetMessage]:
     msgs = []
     while len(data):
-        header, message, data = HiQnetHeader.decode(data)
+        try:
+            header, message, data = HiQnetHeader.decode(data)
+        except (IncorrectDestination, DecodeFailed) as ex:
+            msgs.append(ex)
+            break
 
         try:
             if header.message_id == MessageID.DiscoInfo:
