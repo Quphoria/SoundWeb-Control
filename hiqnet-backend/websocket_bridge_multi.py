@@ -108,6 +108,8 @@ def check_auth_token_hmac(message: str):
     return False, None
 
 def ws_on_connection_open(client, server):
+    if client is None:
+        return
     print("Websocket Connection:", client["address"], flush=True)
 
 def close_ws_client(client, server):
@@ -116,6 +118,8 @@ def close_ws_client(client, server):
 
 def ws_on_data_receive(client, server, message):
     global WEBSOCKET_LIST, WS_USER_DATA, WS_DATA_LOCK, RUN_SERVER
+    if client is None:
+        return
     user_data, user_options, user_subs = WS_USER_DATA.get(client["address"], (None, None, None))
     if user_data is None:
         # close websocket if auth token invalid
@@ -211,6 +215,8 @@ def ws_on_data_receive(client, server, message):
 
 def ws_on_connection_close(client, server):
     global WS_DATA_LOCK, WEBSOCKET_LIST, WS_USER_DATA
+    if client is None:
+        return
     with WS_DATA_LOCK:
         if client in WEBSOCKET_LIST:
             WEBSOCKET_LIST.remove(client)
