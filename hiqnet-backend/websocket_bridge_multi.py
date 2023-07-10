@@ -226,12 +226,19 @@ def ws_on_connection_close(client, server):
 
 health_check_queue = None
 
-def update_health(healthy: bool):
+def update_health(status):
+    healthy = all(s for s in status.values()) if status else False
+
     with open("health.status", "w") as f:
         if healthy:
-            f.write("0")
+            f.write("0\n")
         else:
-            f.write("1")
+            f.write("1\n")
+        if status:
+            for t_id, t_status in status.items():
+                f.write(f"{t_id}: {'Healthy' if t_status else 'Unhealthy'}\n")
+        else:
+            print("(Empty)")
 
 async def health_check():
     global client_thread_status, RUN_SERVER
@@ -243,8 +250,7 @@ async def health_check():
         status = await health_check_queue.async_q.get()
         client_thread_status[status["id"]] = status["status"]
 
-        healthy = all(s for s in client_thread_status.values())
-        update_health(healthy)
+        update_health(client_thread_status)
 
 def get_node_alias(n):
     global config
@@ -342,7 +348,7 @@ async def main():
         pass
 
 if __name__ == "__main__":
-    update_health(False) # set healthy to false when starting
+    update_health({}) # set healthy to false when starting
     config = load_config("config/config.json")
     print("HiQnet Websocket Proxy", VERSION)
     try:
