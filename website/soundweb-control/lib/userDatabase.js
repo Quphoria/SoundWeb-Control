@@ -28,6 +28,7 @@ function migrateDatabase() {
     // user.lastLogin: string
     // user.lastChange: string
     // user.hiddenTabs: array of strings
+    // user.enabledSSOApps: string-string object (map)
 
     if (typeof(user) !== 'object') break;
     if (typeof(user.id) !== "number" || new_users.find(x => x.id === user.id)) break;
@@ -40,6 +41,13 @@ function migrateDatabase() {
     if (typeof(user.lastChange) !== "string") { user.lastChange = "Unknown"; user_changed = true; }
     if (!Array.isArray(user.hiddenTabs) || user.hiddenTabs.find(x => typeof(x) !== "string") !== undefined) {
       user.hiddenTabs = [];
+      user_changed = true;
+    }
+    if (user.SSOApps === undefined
+        || user.SSOApps !== Object(user.SSOApps) // Check if it is an Object
+        || Object.keys(user.SSOApps).find(x => typeof(x) !== "string") !== undefined
+        || Object.values(user.SSOApps).find(x => typeof(x) !== "string") !== undefined) {
+      user.SSOApps = {};
       user_changed = true;
     }
     if (user_changed)  {
@@ -134,6 +142,7 @@ function create(user) {
   user.hiddenTabs = user.hiddenTabs !== undefined ? user.hiddenTabs : [];
   user.admin = user.admin !== undefined ? user.admin : [];
   user.disabled = user.disabled !== undefined ? user.disabled : [];
+  user.SSOApps = user.SSOApps !== undefined ? user.SSOApps : {};
   
   // add and save user
   users.push(user);

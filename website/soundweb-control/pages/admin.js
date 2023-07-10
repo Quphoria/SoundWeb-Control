@@ -10,6 +10,7 @@ import { Padding, Rainbow } from "../styles"
 import UserManager from "../components/admin/UserManager"
 import BackendStatus from "../components/admin/BackendStatus"
 import UploadPanelDialog from "../components/admin/UploadPanelDialog"
+import SSOSettingsDialog from "../components/admin/SSOSettingsDialog"
 
 export async function getStaticProps () {
   // `getStaticProps` is executed on the server side.
@@ -28,6 +29,7 @@ const Admin = props => {
     redirectTo: "/login",
     redirectQuery: true
   });
+  const [ssoSettingsModalState, setSSOSettingsModalState] = useState({show: false});
   const [uploadPanelModalState, setUploadPanelModalState] = useState({show: false});
   const [backendStatusRestartCallback, setBackendStatusRestartCallback] = useState({callback: null});
 
@@ -61,6 +63,7 @@ const Admin = props => {
           <title>SoundWeb Admin</title>
           <meta name="viewport" content="initial-scale=1.0, width=device-width" />
       </Head>
+      <SSOSettingsDialog state={ssoSettingsModalState} setState={setSSOSettingsModalState} />
       <UploadPanelDialog state={uploadPanelModalState} setState={setUploadPanelModalState} />
       <Padding>
         <h2>Admin</h2>
@@ -75,6 +78,8 @@ const Admin = props => {
           fontSize: "0.8rem",
           cursor: "pointer"
         }}>
+        <a onClick={() => setSSOSettingsModalState({show: true})}
+          style={{textDecoration: "underline", color: "var(--bs-info)"}}>SSO Settings</a> &nbsp;&nbsp;
         <a onClick={backendStatusRestartCallback.callback}
           style={{textDecoration: "underline", color: "var(--bs-danger)"}}>Restart Backend</a> &nbsp;&nbsp;
         <a onClick={() => setUploadPanelModalState({show: true})}

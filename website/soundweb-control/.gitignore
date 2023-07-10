@@ -30,3 +30,6 @@ yarn-error.log*
 .env.production.local
 
 package-lock.json
+
+*.priv
+*.pub

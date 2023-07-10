@@ -3,13 +3,14 @@ import BTable from 'react-bootstrap/Table';
 import FormCheck from 'react-bootstrap/FormCheck';
 import FormControl from 'react-bootstrap/FormControl'
 import useSWR from "swr";
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
 
 import { tab_count } from "../../PanelContents";
 import DeleteConfirmation from "./DeleteConfirmation";
 import InfoModal from "../InfoModal";
 import ChangePasswordDialog from "./ChangePasswordDialog";
 import AddUserDialog from "./AddUserDialog";
+import SSOAppsDialog from "./SSOAppsDialog";
 
 const api_admin_users = "/api/admin/users";
 const api_admin_password = "/api/admin/password";
@@ -57,7 +58,7 @@ function formatDate(date) {
   return date == "Unknown" ? "Unknown" : new Date(date).toLocaleString()
 }
 
-function generateTableRow(user, current_user, users, mutateUsers, setDeleteModalState, setInfoModalState, setChangePasswordModalState) {
+function generateTableRow(user, current_user, users, mutateUsers, setDeleteModalState, setInfoModalState, setChangePasswordModalState, setSSOModalState) {
   var tab_buttons = [];
   for(var i = 0; i < tab_count; i++) {
     tab_buttons.push((
@@ -128,10 +129,21 @@ function generateTableRow(user, current_user, users, mutateUsers, setDeleteModal
           style={{marginRight: "0.2em"}}>
         Info
       </Button>
+      <Button variant="secondary" size="sm" onClick={() => {
+        setSSOModalState({
+          show: true,
+          user_id: user.id,
+          username: user.username,
+          SSOApps: user.SSOApps,
+          onChange: (() => mutateUsers())
+        });
+      }}
+          style={{marginRight: "0.2em"}}>
+        SSO
+      </Button>
       <Button variant="primary" size="sm" onClick={() => {
             setChangePasswordModalState({
               show: true,
-              body: (<p>Are you sure you want to delete user <b>{user.username}</b>?</p>),
               username: user.username,
               hide: user.id === current_user.id,
               onConfirm: (password) => {
@@ -182,12 +194,29 @@ export default function UserManager({
   const [infoModalState, setInfoModalState] = useState({show: false});
   const [changePasswordModalState, setChangePasswordModalState] = useState({show: false});
   const [addUserModalState, setAddUserModalState] = useState({show: false});
+  const [ssoModalState, setSSOModalState] = useState({show: false});
+
+  useEffect(() => {
+    setChangePasswordModalState({show: false});
+    if (ssoModalState.show) {
+      const updated_user = users.find(user => user.id == ssoModalState.user_id);
+      if (!updated_user) {
+        setSSOModalState({show: false});
+      } else {
+        var newState = ssoModalState;
+        newState.username = updated_user.username;
+        newState.SSOApps = updated_user.SSOApps;
+        setSSOModalState(newState);
+      }
+    }
+  }, [users])
 
   return (
     <form onSubmit={e => {e.preventDefault()}}>
       <DeleteConfirmation state={deleteModalState} setState={setDeleteModalState} />
       <InfoModal state={infoModalState} setState={setInfoModalState} />
       <ChangePasswordDialog state={changePasswordModalState} setState={setChangePasswordModalState} />
+      <SSOAppsDialog state={ssoModalState} setState={setSSOModalState} />
       <AddUserDialog state={addUserModalState} setState={setAddUserModalState} />
       <div style={{
         display: "flex",
@@ -230,7 +259,7 @@ export default function UserManager({
           </tr>
         </thead>
         <tbody>
-          {users ? users.map(u => generateTableRow(u, user, users, mutateUsers, setDeleteModalState, setInfoModalState, setChangePasswordModalState)) :
+          {users ? users.map(u => generateTableRow(u, user, users, mutateUsers, setDeleteModalState, setInfoModalState, setChangePasswordModalState, setSSOModalState)) :
             (<tr><td colSpan={6} style={{textAlign: "center"}}>Loading...</td></tr>)}
         </tbody>
       </BTable>
