@@ -18,7 +18,7 @@ const Login = props => {
   useEffect(() => {
     // if user data not yet there (fetch in progress, logged in or not) then don't do anything yet
     if (!user?.isLoggedIn) return;
-    if (router.query === undefined);
+    if (!router.query) return;
 
     const redirectTo = (router && router.query && router.query.callback) ? JSON.parse(router.query.callback) : undefined;
 

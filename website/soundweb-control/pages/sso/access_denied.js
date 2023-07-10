@@ -1,6 +1,7 @@
 import React from "react"
 import { useEffect } from "react";
 import Router from "next/router";
+import { useRouter } from "next/router";
 import useSWR from "swr";
 import Button from "react-bootstrap/Button";
 
@@ -9,21 +10,21 @@ import { Rainbow, Padding, Spacer } from "../../styles";
 
 
 const AccessDenied = props => {
+  const router = useRouter();
   const { data: user, mutate: mutateUser } = useSWR("/api/user", url => fetch(url, {method: 'POST'}).then(res => res.json()));
 
   useEffect(() => {
-    window.close();
-  }, []);
-
-  useEffect(() => {
     if (!user) return; // User info still loading
+    if (!router.query) return;
 
     if (!user?.isLoggedIn) {
-      Router.push("/sso/logout");
+      var url = { pathname: "/sso/logout" };
+      if (router.query.callback) url.query = { callback: router.query.callback };
+      Router.push(url);
       return;
     };
 
-  }, [user]);
+  }, [user, router.query]);
   
   return (
     <SSOLayout>
@@ -48,7 +49,11 @@ const AccessDenied = props => {
         <br />
         <Button 
           variant="outline-light"
-          onClick={() => {Router.push("/sso/logout")}}
+          onClick={() => {
+            var url = { pathname: "/sso/logout" };
+            if (router.query.callback) url.query = { callback: router.query.callback };
+            Router.push(url);
+          }}
           >
           Logout
         </Button>
