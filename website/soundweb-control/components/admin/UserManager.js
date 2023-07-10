@@ -55,7 +55,7 @@ function onTableChange(e, id, key, users, mutateUsers, hiddenTabs=[]) {
 }
 
 function formatDate(date) {
-  return date == "Unknown" ? "Unknown" : new Date(date).toLocaleString()
+  return ["Unknown", "Never"].includes(date) ? date : new Date(date).toLocaleString()
 }
 
 function generateTableRow(user, current_user, users, mutateUsers, setDeleteModalState, setInfoModalState, setChangePasswordModalState, setSSOModalState) {
