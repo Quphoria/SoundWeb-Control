@@ -134,7 +134,7 @@ function generateTableRow(user, current_user, users, mutateUsers, setDeleteModal
           show: true,
           user_id: user.id,
           username: user.username,
-          SSOApps: user.SSOApps,
+          enabledSSOApps: user.enabledSSOApps,
           onChange: (() => mutateUsers())
         });
       }}
@@ -205,7 +205,7 @@ export default function UserManager({
       } else {
         var newState = ssoModalState;
         newState.username = updated_user.username;
-        newState.SSOApps = updated_user.SSOApps;
+        newState.enabledSSOApps = updated_user.enabledSSOApps;
         setSSOModalState(newState);
       }
     }

@@ -10,8 +10,8 @@ export default withSessionRoute(
         res.send("Unauthorised");
         return;
       }
-      userDatabase.load();
       if (req.method === "PATCH") {
+        userDatabase.load();
         const { id, password } = req.body;
         
         if (!password) throw { message: "Password cannot be empty" }

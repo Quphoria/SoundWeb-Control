@@ -11,13 +11,15 @@ import { Rainbow, Padding, Spacer } from "../../styles";
 
 const AccessDenied = props => {
   const router = useRouter();
-  const { data: user, mutate: mutateUser } = useSWR("/api/user", url => fetch(url, {method: 'POST'}).then(res => res.json()));
+  const { data: user } = useSWR("/api/user", url => fetch(url, {method: 'POST'}).then(res => res.json()));
+
+  const new_app_id = router.query.new_app_id !== undefined;
 
   useEffect(() => {
     if (!user) return; // User info still loading
     if (!router.query) return;
 
-    if (!user?.isLoggedIn) {
+    if (!user?.isLoggedIn && !new_app_id) {
       var url = { pathname: "/sso/logout" };
       if (router.query.callback) url.query = { callback: router.query.callback };
       Router.push(url);
@@ -46,6 +48,9 @@ const AccessDenied = props => {
           Access Denied
         </h3>
         <p>You are unable to use this external application, please contact an administrator</p>
+        <p>{new_app_id ?
+          "(An admin account is required to add a new app)" : ""
+        }</p>
         <br />
         <Button 
           variant="outline-light"

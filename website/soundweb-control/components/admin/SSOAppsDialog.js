@@ -2,20 +2,22 @@ import Modal from 'react-bootstrap/Modal'
 import Button from 'react-bootstrap/Button'
 import BTable from 'react-bootstrap/Table';
 import FormCheck from 'react-bootstrap/FormCheck';
+import useSWR from "swr";
 
 const api_admin_user_sso_apps = "/api/admin/user_sso_apps";
+const api_admin_sso_apps = "/api/admin/sso_apps";
 
-function SSOAppRow(app_id, app_enabled, user_id, username, onChange) {
-  return (<tr key={`app-${app_id}`}>
+function SSOAppRow(app, app_enabled, user_id, username, onChange) {
+  return (<tr key={`app-${app.id}`}>
     <td style={{paddingLeft: "0.5em"}}>
-      {app_id}
+      <code>{app.id}</code>
     </td>
     <td>
       <FormCheck 
         type="switch"
-        label={app_enabled == "enabled" ? "Enabled" : "Disabled"}
-        checked={app_enabled == "enabled"}
-        defaultChecked={false}
+        label={app.disabled ? "App Disabled for all users" : (app_enabled ? "Enabled" : "Disabled")}
+        disabled={app.disabled}
+        defaultChecked={app_enabled && !app.disabled}
         onChange={(e) => {
           const checked = e.target.checked;
           fetch(api_admin_user_sso_apps, {
@@ -25,38 +27,20 @@ function SSOAppRow(app_id, app_enabled, user_id, username, onChange) {
             },
             body: JSON.stringify({
               id: user_id,
-              sso_app_id: app_id,
+              sso_app_id: app.id,
               action: checked ? "enable" : "disable"
             })
           }).then(() => onChange());
         }}
       />
     </td>
-    <td>
-      <Button variant="danger" size="sm" onClick={() => {
-        if (!confirm(`Are you sure you want to remove the ${app_id} app for user ${username}?\nYou can get this option back by re-signing into the SSO app.`)) {
-          return;
-        }
-        fetch(api_admin_user_sso_apps, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            id: user_id,
-            sso_app_id: app_id,
-            action: "delete"
-          })
-        }).then(() => onChange());
-      }}>
-        Delete
-      </Button>
-    </td>
   </tr>);
 }
 
 function SSOAppsDialog(props) {
   const { state, setState } = props;
+
+  const { data: SSOApps } = useSWR(api_admin_sso_apps, url => fetch(url, {method: 'POST'}).then(res => res.json()));
 
   const handleClose = () => setState({show: false});
 
@@ -73,11 +57,14 @@ function SSOAppsDialog(props) {
             <tr>
               <th>App</th>
               <th></th>
-              <th></th>
             </tr>
           </thead>
           <tbody>
-            {state.SSOApps ? Object.keys(state.SSOApps).map((app_id) => SSOAppRow(app_id, state.SSOApps[app_id], state.user_id, state.username, state.onChange)) : []}
+            {SSOApps ? SSOApps.map((app) => SSOAppRow(app, state.enabledSSOApps?.includes(app.id), state.user_id, state.username, state.onChange)) : [(
+              <tr key={"empty"}>
+                <td colSpan={2}>No Apps</td>
+              </tr>
+            )]}
           </tbody>
         </BTable>
       </Modal.Body>

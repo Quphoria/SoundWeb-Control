@@ -10,3 +10,6 @@ users.json
 PanelContents.js
 config.jsonc
 /data/backend/config.json
+sso_apps.json
+*.priv
+*.pub

@@ -1,3 +1,5 @@
+import { ssoAppDatabase } from './ssoAppDatabase';
+
 const fs = require('fs');
 
 const filename = ( process.env.DATA_DIR || "" ) + "users.json";
@@ -16,6 +18,9 @@ export const userDatabase = {
 function migrateDatabase() {
   var new_users = [];
   var changed = false;
+
+  ssoAppDatabase.load();
+
   for (const user of users) {
     var user_changed = false;
     // user: object
@@ -28,7 +33,7 @@ function migrateDatabase() {
     // user.lastLogin: string
     // user.lastChange: string
     // user.hiddenTabs: array of strings
-    // user.enabledSSOApps: string-string object (map)
+    // user.enabledSSOApps: array of strings
 
     if (typeof(user) !== 'object') break;
     if (typeof(user.id) !== "number" || new_users.find(x => x.id === user.id)) break;
@@ -43,11 +48,13 @@ function migrateDatabase() {
       user.hiddenTabs = [];
       user_changed = true;
     }
-    if (user.SSOApps === undefined
-        || user.SSOApps !== Object(user.SSOApps) // Check if it is an Object
-        || Object.keys(user.SSOApps).find(x => typeof(x) !== "string") !== undefined
-        || Object.values(user.SSOApps).find(x => typeof(x) !== "string") !== undefined) {
-      user.SSOApps = {};
+    if (!Array.isArray(user.enabledSSOApps) || user.enabledSSOApps.find(x => typeof(x) !== "string") !== undefined) {
+      user.enabledSSOApps = [];
+      user_changed = true;
+    }
+    // Remove apps that don't exist
+    if (user.enabledSSOApps.find(x => ssoAppDatabase.find(a => a.id == x) === undefined) !== undefined) {
+      user.enabledSSOApps = user.enabledSSOApps.filter(x => ssoAppDatabase.find(a => a.id == x) !== undefined);
       user_changed = true;
     }
     if (user_changed)  {
@@ -142,7 +149,7 @@ function create(user) {
   user.hiddenTabs = user.hiddenTabs !== undefined ? user.hiddenTabs : [];
   user.admin = user.admin !== undefined ? user.admin : [];
   user.disabled = user.disabled !== undefined ? user.disabled : [];
-  user.SSOApps = user.SSOApps !== undefined ? user.SSOApps : {};
+  user.enabledSSOApps = user.enabledSSOApps !== undefined ? user.enabledSSOApps : [];
   
   // add and save user
   users.push(user);
