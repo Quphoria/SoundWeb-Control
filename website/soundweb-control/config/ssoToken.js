@@ -6,7 +6,7 @@ const public_filename = ( process.env.DATA_DIR || "" ) + "SSO.pub";
 var SSOPrivateKey = undefined;
 var SSOPublicKey = undefined;
 
-export default function createSSOToken(username, admin, sso_app_id) {
+export default function createSSOToken(username, admin, sso_app_id, challenge, logout_url) {
   if (!SSOPrivateKey && fs.existsSync(filename)) loadSSOKey();
 
   if (!SSOPrivateKey) { // Failed to load
@@ -20,7 +20,8 @@ export default function createSSOToken(username, admin, sso_app_id) {
     username, 
     admin,
     time: Date.now(),
-    sso_app_id
+    sso_app_id,
+    challenge
   });
 
   var signature = "";
@@ -40,7 +41,8 @@ export default function createSSOToken(username, admin, sso_app_id) {
   return {
     status: "ok",
     data: data,
-    signature
+    signature,
+    logout_url
   };
 }
 
