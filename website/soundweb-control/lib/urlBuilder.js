@@ -7,5 +7,5 @@ export default function urlBuilder(pathname, query) {
 }
 
 export function resourceUrlEncode(url) {
-  return encodeURI(url.replace(/^resources/, resources_url));
+  return encodeURI(url.replace(/^\/?resources/, resources_url));
 }
