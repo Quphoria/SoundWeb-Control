@@ -1,6 +1,7 @@
 import React from 'react'
 
 import ControlElement from './ControlElement'
+import { resourceUrlEncode } from '../lib/urlBuilder';
 
 class Button extends ControlElement {
   state = { value: false };
@@ -72,7 +73,7 @@ class Button extends ControlElement {
           height:h,
           wordWrap: "break-word",
           textAlign: "center",
-          backgroundImage: `url(${encodeURI(this.state.value ? onImg : offImg)})`,
+          backgroundImage: `url(${resourceUrlEncode(this.state.value ? onImg : offImg)})`,
           backgroundSize: "100% 100%", // stretch image to fill
           backgroundColor: this.state.value ? onColour : offColour,
           color: this.state.value ? onTextColour : offTextColour,

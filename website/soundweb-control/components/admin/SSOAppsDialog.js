@@ -4,10 +4,9 @@ import BTable from 'react-bootstrap/Table';
 import FormCheck from 'react-bootstrap/FormCheck';
 import useSWR from "swr";
 
-const api_admin_user_sso_apps = "/api/admin/user_sso_apps";
-const api_admin_sso_apps = "/api/admin/sso_apps";
+import { api_admin_sso_apps_url, api_admin_user_sso_apps_url } from '../../lib/siteUrls';
 
-function SSOAppRow(app, app_enabled, user_id, username, onChange) {
+function SSOAppRow(app, app_enabled, user_id, onChange) {
   return (<tr key={`app-${app.id}`}>
     <td style={{paddingLeft: "0.5em"}}>
       <code>{app.id}</code>
@@ -20,7 +19,7 @@ function SSOAppRow(app, app_enabled, user_id, username, onChange) {
         defaultChecked={app_enabled && !app.disabled}
         onChange={(e) => {
           const checked = e.target.checked;
-          fetch(api_admin_user_sso_apps, {
+          fetch(api_admin_user_sso_apps_url, {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json'
@@ -40,7 +39,7 @@ function SSOAppRow(app, app_enabled, user_id, username, onChange) {
 function SSOAppsDialog(props) {
   const { state, setState } = props;
 
-  const { data: SSOApps } = useSWR(api_admin_sso_apps, url => fetch(url, {method: 'POST'}).then(res => res.json()));
+  const { data: SSOApps } = useSWR(api_admin_sso_apps_url, url => fetch(url, {method: 'POST'}).then(res => res.json()));
 
   const handleClose = () => setState({show: false});
 
@@ -60,7 +59,7 @@ function SSOAppsDialog(props) {
             </tr>
           </thead>
           <tbody>
-            {SSOApps ? SSOApps.map((app) => SSOAppRow(app, state.enabledSSOApps?.includes(app.id), state.user_id, state.username, state.onChange)) : [(
+            {SSOApps ? SSOApps.map((app) => SSOAppRow(app, state.enabledSSOApps?.includes(app.id), state.user_id, state.onChange)) : [(
               <tr key={"empty"}>
                 <td colSpan={2}>No Apps</td>
               </tr>

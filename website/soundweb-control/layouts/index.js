@@ -6,6 +6,7 @@ import { useEffect } from "react"
 import { Nav, PageBody, Footer } from "../styles"
 import useUser from "../lib/useUser"
 import fetchJson from "../lib/fetchJson"
+import { home_url, panel_url, admin_url, login_url, api_logout_url, github_url } from "../lib/siteUrls"
 
 const Layout = ({ children }) => {
   const { user, mutateUser } = useUser();
@@ -108,13 +109,13 @@ const Layout = ({ children }) => {
         `}
       />
       <Nav>
-        <Link href="/">
+        <Link href={home_url}>
           <a>Home</a>
         </Link>
         {
           user?.isLoggedIn &&
           (
-            <Link href="/panel">
+            <Link href={panel_url}>
               <a>Panel</a>
             </Link>
           )
@@ -122,19 +123,19 @@ const Layout = ({ children }) => {
         {
           user?.isLoggedIn && user.admin &&
           (
-            <Link href="/admin">
+            <Link href={admin_url}>
               <a>Admin</a>
             </Link>
           )
         }
         {
           !user?.isLoggedIn ?
-          (<Link href="/login">
+          (<Link href={login_url}>
             <a>Login</a>
           </Link>) :
-          (<a href="/api/logout" onClick={async (e) => {
+          (<a href={api_logout_url} onClick={async (e) => {
             e.preventDefault();
-            const data = await fetchJson("/api/logout", { method: "POST" });
+            const data = await fetchJson(api_logout_url, { method: "POST" });
             mutateUser(
               data.user,
               false,
@@ -149,7 +150,7 @@ const Layout = ({ children }) => {
         <p
           style={{fontSize: "0.8em"}}
         >
-          2022{new Date().getFullYear() > 2022 ? "-" + new Date().getFullYear() : ""} © <a href="https://github.com/Quphoria" style={{color: "inherit"}}>Samuel Simpson</a>, All rights reserved
+          2022{new Date().getFullYear() > 2022 ? "-" + new Date().getFullYear() : ""} © <a href={github_url} style={{color: "inherit"}}>Samuel Simpson</a>, All rights reserved
         </p>
       </Footer>
     </React.Fragment>

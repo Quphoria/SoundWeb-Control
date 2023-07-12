@@ -7,6 +7,7 @@ import LoginForm from "../components/LoginForm";
 import fetchJson, { FetchError } from "../lib/fetchJson";
 import useUser from "../lib/useUser";
 import { Rainbow, Padding, Spacer } from "../styles";
+import { api_login_url, panel_url } from "../lib/siteUrls";
 
 
 const Login = props => {
@@ -14,7 +15,7 @@ const Login = props => {
   const router = useRouter();
 
   const { mutateUser } = useUser({
-    redirectTo: (router && router.query && router.query.p) ? JSON.parse(router.query.p) : "/panel",
+    redirectTo: (router && router.query && router.query.p) ? JSON.parse(router.query.p) : panel_url,
     redirectIfFound: true
   });
 
@@ -44,7 +45,7 @@ const Login = props => {
               };
 
               try {
-                const login_req = await fetchJson("/api/login", {
+                const login_req = await fetchJson(api_login_url, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(body),

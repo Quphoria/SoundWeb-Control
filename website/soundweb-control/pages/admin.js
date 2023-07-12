@@ -11,6 +11,7 @@ import UserManager from "../components/admin/UserManager"
 import BackendStatus from "../components/admin/BackendStatus"
 import UploadPanelDialog from "../components/admin/UploadPanelDialog"
 import SSOSettingsDialog from "../components/admin/SSOSettingsDialog"
+import { home_url, login_url } from "../lib/siteUrls"
 
 export async function getStaticProps () {
   // `getStaticProps` is executed on the server side.
@@ -26,7 +27,7 @@ export async function getStaticProps () {
 const Admin = props => {
 
   const { user } = useUser({
-    redirectTo: "/login",
+    redirectTo: login_url,
     redirectQuery: true
   });
   const [ssoSettingsModalState, setSSOSettingsModalState] = useState({show: false});
@@ -39,7 +40,7 @@ const Admin = props => {
   }
 
   if (!user.isLoggedIn || !user.admin) {
-    const Redirect = redirect("/");
+    const Redirect = redirect(home_url);
     return (
       <Redirect>
         <div style={{
@@ -47,7 +48,7 @@ const Admin = props => {
           fontSize: 20
         }}>
           Redirecting to&nbsp;
-          <Link href={{ pathname: "/" }}>
+          <Link href={{ pathname: home_url }}>
             <a>Home</a>
           </Link>...
         </div>

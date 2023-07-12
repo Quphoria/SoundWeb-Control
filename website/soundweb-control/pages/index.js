@@ -4,6 +4,7 @@ import Link from "next/link"
 
 import { Rainbow, Spacer } from '../styles'
 import useUser from '../lib/useUser'
+import { favicon_url, login_url, panel_url } from '../lib/siteUrls'
 
 export default function Home() {
   const { user } = useUser();
@@ -13,7 +14,7 @@ export default function Home() {
     <div className="container">
       <Head>
         <title>SoundWeb Control</title>
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" href={favicon_url} />
       </Head>
 
       <main>
@@ -25,7 +26,7 @@ export default function Home() {
           Login to get started
         </p> */}
 
-        <Link href={user?.isLoggedIn ? "/panel" : "/login"}> 
+        <Link href={user?.isLoggedIn ? panel_url : login_url}> 
           <a
             className="btn btn-outline-light btn-lg"
             role="button"

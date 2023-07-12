@@ -3,6 +3,7 @@ import React from 'react'
 import { Range, Direction } from '@quphoria/react-range';
 
 import ControlElement from './ControlElement'
+import { resourceUrlEncode } from '../lib/urlBuilder';
 
 class Fader extends ControlElement {
   state = { values: [0], handleWidth: 0, handleHeight: 0 };
@@ -20,7 +21,7 @@ class Fader extends ControlElement {
     handleWidth: 30,
     handleHeight: 50,
     vertical: true,
-    sliderImg: "/resources/SliderH_AH.png",
+    sliderImg: resourceUrlEncode("resources/SliderH_AH.png"),
     capOffsetX: 0,
     capOffsetY: 0,
     showTicks: false,

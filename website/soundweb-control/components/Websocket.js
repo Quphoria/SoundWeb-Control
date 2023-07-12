@@ -1,5 +1,7 @@
 // Modified version of https://github.com/alamorre/nextjs-websocket
 
+import { api_auth_token_url } from '../lib/siteUrls';
+
 var W3CWebSocket = require('websocket').w3cwebsocket;
 
 class WebSocket {
@@ -89,7 +91,7 @@ class WebSocket {
     if (!this.props.use_auth) {
       this.setupWebsocket("__test__");
     } else {
-      fetch("/api/auth_token", {
+      fetch(api_auth_token_url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({options: this.props.options})

@@ -2,6 +2,7 @@ import React from "react"
 import { Global, css } from "@emotion/react"
 
 import { PageBody, Footer } from "../styles"
+import { github_url } from "../lib/siteUrls"
 
 const SSOLayout = ({ children }) => {
   return (
@@ -98,7 +99,7 @@ const SSOLayout = ({ children }) => {
         <p
           style={{fontSize: "0.8em"}}
         >
-          2022{new Date().getFullYear() > 2022 ? "-" + new Date().getFullYear() : ""} © <a href="https://github.com/Quphoria" style={{color: "inherit"}}>Samuel Simpson</a>, All rights reserved
+          2022{new Date().getFullYear() > 2022 ? "-" + new Date().getFullYear() : ""} © <a href={github_url} style={{color: "inherit"}}>Samuel Simpson</a>, All rights reserved
         </p>
       </Footer>
     </React.Fragment>

@@ -8,19 +8,20 @@ import Button from "react-bootstrap/Button";
 import SSOLayout from "../../layouts/sso"
 import fetchJson from "../../lib/fetchJson";
 import { Rainbow, Padding, Spacer } from "../../styles";
+import { api_logout_url, api_user_url, sso_login_url } from "../../lib/siteUrls";
 
 
 const Logout = props => {
   const router = useRouter();
 
-  const { data: user, mutate: mutateUser } = useSWR("/api/user", url => fetch(url, {method: 'POST'}).then(res => res.json()));
+  const { data: user, mutate: mutateUser } = useSWR(api_user_url, url => fetch(url, {method: 'POST'}).then(res => res.json()));
 
   useEffect(() => {
     if (!router.query) return;
     
     let timer;
     function call_logout() {
-      fetchJson("/api/logout", { method: "POST" })
+      fetchJson(api_logout_url, { method: "POST" })
       .then((data) => {
         mutateUser(data.user, false);
         const redirectTo = (router && router.query && router.query.callback) ? JSON.parse(router.query.callback) : undefined;
@@ -62,7 +63,7 @@ const Logout = props => {
         <br />
         <Button 
           variant="outline-light"
-          onClick={() => {Router.push("/sso/login")}}
+          onClick={() => {Router.push(sso_login_url)}}
           >
           Login
         </Button>

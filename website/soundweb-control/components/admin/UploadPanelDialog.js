@@ -4,10 +4,7 @@ import Button from 'react-bootstrap/Button'
 import Form from 'react-bootstrap/Form'
 
 import { tab_count } from '../../PanelContents';
-
-const api_restart = "/api/admin/restart";
-const api_panel_upload = "/api/admin/panel_upload";
-const api_panel_restore = "/api/admin/panel_restore";
+import { api_admin_restart_url, api_admin_panel_upload_url, api_admin_panel_restore_url, home_url } from '../../lib/siteUrls';
 
 const toBase64 = file => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -28,7 +25,7 @@ function UploadPanelDialog(props) {
       handleClose();
       return;
     }
-    fetch(api_restart, {
+    fetch(api_admin_restart_url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -41,7 +38,7 @@ function UploadPanelDialog(props) {
       handleClose();
       if (r.ok) {
         alert("Webserver restarting...");
-        window.location = "/";
+        window.location = home_url;
         return;
       };
     })
@@ -63,7 +60,7 @@ function UploadPanelDialog(props) {
       handleClose();
       return;
     }
-    fetch(api_panel_upload, {
+    fetch(api_admin_panel_upload_url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -78,7 +75,7 @@ function UploadPanelDialog(props) {
       if (r.ok) {
         handleClose();
         alert("Server restarting due to panel file change");
-        window.location = "/";
+        window.location = home_url;
         return;
       };
 
@@ -93,7 +90,7 @@ function UploadPanelDialog(props) {
       handleClose();
       return;
     }
-    fetch(api_panel_restore, {
+    fetch(api_admin_panel_restore_url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -106,7 +103,7 @@ function UploadPanelDialog(props) {
       if (r.ok) {
         handleClose();
         alert("Server restarting due to panel file change");
-        window.location = "/";
+        window.location = home_url;
         return;
       };
 

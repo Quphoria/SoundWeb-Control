@@ -11,9 +11,7 @@ import InfoModal from "../InfoModal";
 import ChangePasswordDialog from "./ChangePasswordDialog";
 import AddUserDialog from "./AddUserDialog";
 import SSOAppsDialog from "./SSOAppsDialog";
-
-const api_admin_users = "/api/admin/users";
-const api_admin_password = "/api/admin/password";
+import { api_admin_users_url, api_admin_password_url } from "../../lib/siteUrls";
 
 function onTableChange(e, id, key, users, mutateUsers, hiddenTabs=[]) {
   const value = e.target.value.trim();
@@ -42,7 +40,7 @@ function onTableChange(e, id, key, users, mutateUsers, hiddenTabs=[]) {
   }
   var new_users = users;
   Object.assign(new_users[id], new_data);
-  fetch(api_admin_users, {
+  fetch(api_admin_users_url, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json'
@@ -147,7 +145,7 @@ function generateTableRow(user, current_user, users, mutateUsers, setDeleteModal
               username: user.username,
               hide: user.id === current_user.id,
               onConfirm: (password) => {
-                fetch(api_admin_password, {
+                fetch(api_admin_password_url, {
                   method: 'PATCH',
                   headers: {
                     'Content-Type': 'application/json'
@@ -168,7 +166,7 @@ function generateTableRow(user, current_user, users, mutateUsers, setDeleteModal
           show: true,
           body: (<p>Are you sure you want to delete user <b>{user.username}</b>?</p>),
           onConfirm: () => {
-            fetch(api_admin_users, {
+            fetch(api_admin_users_url, {
               method: 'DELETE',
               headers: {
                 'Content-Type': 'application/json'
@@ -189,7 +187,7 @@ function generateTableRow(user, current_user, users, mutateUsers, setDeleteModal
 export default function UserManager({
   user
 }) {
-  const { data: users, mutate: mutateUsers } = useSWR(api_admin_users, url => fetch(url, {method: 'POST'}).then(res => res.json()));
+  const { data: users, mutate: mutateUsers } = useSWR(api_admin_users_url, url => fetch(url, {method: 'POST'}).then(res => res.json()));
   const [deleteModalState, setDeleteModalState] = useState({show: false});
   const [infoModalState, setInfoModalState] = useState({show: false});
   const [changePasswordModalState, setChangePasswordModalState] = useState({show: false});
@@ -230,7 +228,7 @@ export default function UserManager({
             show: true,
             taken_usernames: users.map(user => user.username.toLowerCase()),
             onConfirm: (data) => {
-              fetch(api_admin_users, {
+              fetch(api_admin_users_url, {
                 method: 'PUT',
                 headers: {
                   'Content-Type': 'application/json'

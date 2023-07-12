@@ -3,12 +3,14 @@ import Router from "next/router";
 import { useRouter } from "next/router";
 import useSWR from "swr";
 
+import { api_user_url } from "./siteUrls";
+
 export default function useUser({
   redirectTo = "",
   redirectIfFound = false,
   redirectQuery = false,
 } = {}) {
-  const { data: user, mutate: mutateUser } = useSWR("/api/user", url => fetch(url, {method: 'POST'}).then(res => res.json()));
+  const { data: user, mutate: mutateUser } = useSWR(api_user_url, url => fetch(url, {method: 'POST'}).then(res => res.json()));
   const router = useRouter();
 
   useEffect(() => {

@@ -4,8 +4,7 @@ import BTable from 'react-bootstrap/Table';
 import FormCheck from 'react-bootstrap/FormCheck';
 import useSWR from "swr";
 
-const api_admin_sso_keys = "/api/admin/sso_keys";
-const api_admin_sso_apps = "/api/admin/sso_apps";
+import { api_admin_sso_keys_url, api_admin_sso_apps_url } from '../../lib/siteUrls';
 
 function SSOAppRow(app, mutateSSOApps) {
   return (<tr key={`app-${app.id}`}>
@@ -19,7 +18,7 @@ function SSOAppRow(app, mutateSSOApps) {
         defaultChecked={!app.disabled}
         onChange={(e) => {
           const checked = e.target.checked;
-          fetch(api_admin_sso_apps, {
+          fetch(api_admin_sso_apps_url, {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json'
@@ -37,7 +36,7 @@ function SSOAppRow(app, mutateSSOApps) {
         if (!confirm(`Are you sure you want to remove the ${app.id} app?\nYou can get this option back by re-signing into the SSO app.`)) {
           return;
         }
-        fetch(api_admin_sso_apps, {
+        fetch(api_admin_sso_apps_url, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json'
@@ -57,8 +56,8 @@ function SSOAppRow(app, mutateSSOApps) {
 function SSOSettingsDialog(props) {
   const { state, setState } = props;
 
-  const { data: public_key, mutate: mutatePublicKey } = useSWR(api_admin_sso_keys, url => fetch(url, {method: 'POST'}).then(res => res.text()));
-  const { data: SSOApps, mutate: mutateSSOApps } = useSWR(api_admin_sso_apps, url => fetch(url, {method: 'POST'}).then(res => res.json()));
+  const { data: public_key, mutate: mutatePublicKey } = useSWR(api_admin_sso_keys_url, url => fetch(url, {method: 'POST'}).then(res => res.text()));
+  const { data: SSOApps, mutate: mutateSSOApps } = useSWR(api_admin_sso_apps_url, url => fetch(url, {method: 'POST'}).then(res => res.json()));
 
   const handleClose = () => setState({show: false});
 
@@ -66,7 +65,7 @@ function SSOSettingsDialog(props) {
     if (!confirm("Are you sure you want to generate new SSO keys?\nTHIS WILL BREAK ALL SSO APPS!!!")) {
       return;
     }
-    fetch(api_admin_sso_keys, {
+    fetch(api_admin_sso_keys_url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

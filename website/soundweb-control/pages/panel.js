@@ -3,6 +3,7 @@ import Layout from "../layouts"
 import Tabs from "../components/Tabs"
 import useUser from "../lib/useUser"
 import { Padding } from "../styles"
+import { login_url } from "../lib/siteUrls"
 
 export async function getStaticProps () {
   // `getStaticProps` is executed on the server side.
@@ -17,7 +18,7 @@ export async function getStaticProps () {
 
 const Panel = props => {
   const { user } = useUser({
-    redirectTo: "/login",
+    redirectTo: login_url,
     redirectQuery: true
   });
 

@@ -7,11 +7,12 @@ import Button from "react-bootstrap/Button";
 
 import SSOLayout from "../../layouts/sso";
 import { Rainbow, Padding, Spacer } from "../../styles";
+import { api_user_url, sso_logout_url } from "../../lib/siteUrls";
 
 
 const AccessDenied = props => {
   const router = useRouter();
-  const { data: user } = useSWR("/api/user", url => fetch(url, {method: 'POST'}).then(res => res.json()));
+  const { data: user } = useSWR(api_user_url, url => fetch(url, {method: 'POST'}).then(res => res.json()));
 
   const new_app_id = router.query.new_app_id !== undefined;
 
@@ -20,7 +21,7 @@ const AccessDenied = props => {
     if (!router.query) return;
 
     if (!user?.isLoggedIn && !new_app_id) {
-      var url = { pathname: "/sso/logout" };
+      var url = { pathname: sso_logout_url };
       if (router.query.callback) url.query = { callback: router.query.callback };
       Router.push(url);
       return;
@@ -55,7 +56,7 @@ const AccessDenied = props => {
         <Button 
           variant="outline-light"
           onClick={() => {
-            var url = { pathname: "/sso/logout" };
+            var url = { pathname: sso_logout_url };
             if (router.query.callback) url.query = { callback: router.query.callback };
             Router.push(url);
           }}

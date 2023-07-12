@@ -1,6 +1,7 @@
 import React from 'react'
 
 import ControlElement from './ControlElement'
+import { resourceUrlEncode } from '../lib/urlBuilder';
 
 class LED extends ControlElement {
   state = { value: 0 };
@@ -52,7 +53,7 @@ class LED extends ControlElement {
           height:h + "px",
           borderRadius: "50%",
           backgroundColor: this.getCurrentColour(),
-          backgroundImage: `url(${encodeURI("resources/LedAlpha.png")})`,
+          backgroundImage: `url(${resourceUrlEncode("resources/LedAlpha.png")})`,
           backgroundSize: "140% 140%",
           backgroundPosition: "50% 50%",
           imageRendering: "pixelated"

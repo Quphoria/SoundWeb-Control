@@ -4,9 +4,7 @@ import validSession from "../../lib/validSession";
 import { ssoAppDatabase } from "../../lib/ssoAppDatabase";
 import urlBuilder from "../../lib/urlBuilder";
 
-const sso_login = "/sso/login";
-const sso_logout = "/sso/logout";
-const sso_access_denied = "/sso/access_denied";
+import { sso_login_url, sso_logout_url, sso_access_denied_url } from "../../lib/siteUrls";
 
 export default withSessionRoute(
   async function ssoRoute(req, res) {
@@ -18,7 +16,7 @@ export default withSessionRoute(
     if (!db_user) {
       res.send({
         status: "redirect",
-        url: urlBuilder(sso_login, {callback})
+        url: urlBuilder(sso_login_url, {callback})
       });
       return;
     }
@@ -31,25 +29,25 @@ export default withSessionRoute(
           ssoAppDatabase.create(sso_app_id);
           res.send({
             status: "redirect",
-            url: urlBuilder(sso_access_denied, {callback})
+            url: urlBuilder(sso_access_denied_url, {callback})
           });
         } else {
           res.send({
             status: "redirect",
-            url: urlBuilder(sso_access_denied, {callback, new_app_id: 1})
+            url: urlBuilder(sso_access_denied_url, {callback, new_app_id: 1})
           });
         }
         return;
       } else if (!db_user.enabledSSOApps.includes(sso_app_id)) {
         res.send({
           status: "redirect",
-          url: urlBuilder(sso_access_denied, {callback})
+          url: urlBuilder(sso_access_denied_url, {callback})
         });
         return;
       }
     }
 
-    const logout_url = urlBuilder(sso_logout, {callback});
+    const logout_url = urlBuilder(sso_logout_url, {callback});
 
     res.send(createSSOToken(db_user.username, db_user.admin, sso_app_id, challenge, logout_url));
   }

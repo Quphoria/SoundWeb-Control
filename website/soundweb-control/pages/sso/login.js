@@ -8,12 +8,13 @@ import SSOLayout from "../../layouts/sso";
 import LoginForm from "../../components/LoginForm";
 import fetchJson, { FetchError } from "../../lib/fetchJson";
 import { Rainbow, Padding, Spacer } from "../../styles";
+import { api_login_url, api_user_url, sso_logged_in_url } from "../../lib/siteUrls";
 
 
 const Login = props => { 
   const router = useRouter();
 
-  const { data: user, mutate: mutateUser } = useSWR("/api/user", url => fetch(url, {method: 'POST'}).then(res => res.json()));
+  const { data: user, mutate: mutateUser } = useSWR(api_user_url, url => fetch(url, {method: 'POST'}).then(res => res.json()));
 
   useEffect(() => {
     // if user data not yet there (fetch in progress, logged in or not) then don't do anything yet
@@ -26,7 +27,7 @@ const Login = props => {
     if (redirectTo) {
       Router.push(redirectTo);
     } else { 
-      Router.push("/sso/logged_in");
+      Router.push(sso_logged_in_url);
     }
   }, [user, router.query]);
 
@@ -59,7 +60,7 @@ const Login = props => {
               };
 
               try {
-                const login_req = await fetchJson("/api/login", {
+                const login_req = await fetchJson(api_login_url, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(body),

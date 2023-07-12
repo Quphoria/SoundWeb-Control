@@ -6,10 +6,11 @@ import Button from "react-bootstrap/Button";
 
 import SSOLayout from "../../layouts/sso";
 import { Rainbow, Padding, Spacer } from "../../styles";
+import { api_user_url, sso_logout_url } from "../../lib/siteUrls";
 
 
 const LoggedIn = props => {
-  const { data: user, mutate: mutateUser } = useSWR("/api/user", url => fetch(url, {method: 'POST'}).then(res => res.json()));
+  const { data: user, mutate: mutateUser } = useSWR(api_user_url, url => fetch(url, {method: 'POST'}).then(res => res.json()));
 
 
   useEffect(() => {
@@ -20,7 +21,7 @@ const LoggedIn = props => {
     if (!user) return; // User info still loading
 
     if (!user?.isLoggedIn) {
-      Router.push("/sso/logout");
+      Router.push(sso_logout_url);
       return;
     };
 
@@ -49,7 +50,7 @@ const LoggedIn = props => {
         <br />
         <Button 
           variant="outline-light"
-          onClick={() => {Router.push("/sso/logout")}}
+          onClick={() => {Router.push(sso_logout_url)}}
           >
           Logout
         </Button>
