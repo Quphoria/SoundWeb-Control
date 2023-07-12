@@ -96,6 +96,7 @@ function SSOSettingsDialog(props) {
       <Modal.Body>
         <h5>SSO Public Key:</h5>
         <code><textarea style={{width: "100%", height: "15em"}} value={public_key} readOnly={true}/></code> 
+        <p></p>
         <h5>SSO Apps:</h5>
         <BTable striped hover size="sm" variant="light">
           <thead>
