@@ -51,6 +51,8 @@ try {
   console.log("\n")
   console.log("Error loading config:", err);
   fs.writeFileSync(filename, defaultConfig);
+  console.log("Previous config saved to:", filename + ".backup");
+  fs.writeFileSync(filename + ".backup", jsonString);
   throw "Failed to load config";
 }
 
