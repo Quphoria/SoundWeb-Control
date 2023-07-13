@@ -18,8 +18,10 @@ const defaultConfig = `{
 
 var config = {};
 
+var backup_on_error = true;
+var jsonString = "";
 try {
-  const jsonString = fs.readFileSync(filename, "utf8");
+  jsonString = fs.readFileSync(filename, "utf8");
   config = jsonc.parse(jsonString);
   if (typeof(config.sessionPassword) !== "string" || config.sessionPassword.length < 32) {
     throw "sessionPassword must be a secret AND SECURE 32+ character string";
@@ -29,6 +31,7 @@ try {
     console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     console.log("!!! sessionPassword has not been changed from the default value, please edit config.jsonc !!!")
     console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    backup_on_error = false; // Don't backup on this error as this may loop after overwriting the config, then deleting the backup
     throw "sessionPassword is insecure"
   }
   if (typeof(config.soundwebBridgeWebsocket) !== "string") {
@@ -45,14 +48,17 @@ try {
     console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     console.log("!!! authTokenSecret has not been changed from the default value, please edit config.jsonc !!!")
     console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    backup_on_error = false;
     throw "authTokenSecret is insecure"
   }
 } catch (err) {
   console.log("\n")
   console.log("Error loading config:", err);
   fs.writeFileSync(filename, defaultConfig);
-  console.log("Previous config saved to:", filename + ".backup");
-  fs.writeFileSync(filename + ".backup", jsonString);
+  if (backup_on_error && jsonString) {
+    console.log("Previous config saved to:", filename + ".backup");
+    fs.writeFileSync(filename + ".backup", jsonString);
+  }
   throw "Failed to load config";
 }
 
