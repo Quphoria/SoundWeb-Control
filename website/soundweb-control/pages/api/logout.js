@@ -1,7 +1,7 @@
 import { withSessionRoute } from "../../lib/withSession";
 
 export default withSessionRoute(
-  async function logoutRoute(req, res, session) {
+  async function logoutRoute(req, res) {
     const ip = req.headers["x-real-ip"] || req.connection.remoteAddress;
     if (req.session.user) {
       const user = req.session.user;

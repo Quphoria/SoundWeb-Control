@@ -12,6 +12,17 @@ export default withSessionRoute(
     const challenge = (req && req.query && req.query.challenge) ? String(req.query.challenge) : undefined;
     const callback = (req && req.query && req.query.callback) ? String(req.query.callback) : undefined;
 
+    if (req?.query?.logout) {
+      const ip = req.headers["x-real-ip"] || req.connection.remoteAddress;
+      const user = req.session.user;
+      console.log(`${user.username}#${user.id} logged out from ${ip} via SSO`);
+      await req.session.destroy();
+      res.send({
+        status: "logged_out"
+      });
+      return;
+    }
+
     const db_user = await validSession(req);
     if (!db_user) {
       res.send({
