@@ -13,7 +13,9 @@ const defaultConfig = `{
   // Enable this if ssl is being used (don't enable if http is being used)
   "useSSL": false,
   // Auth Token Secret, generate another 100 character password
-  "authTokenSecret": "different_password_at_least_32_characters_long"
+  "authTokenSecret": "different_password_at_least_32_characters_long",
+  // SSO Allowed Origin URLs list (for CORS), e.g. ["https://example.com"]
+  "allowedSSOOrigins": []
 }`;
 
 var config = {};
@@ -50,6 +52,9 @@ try {
     console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     backup_on_error = false;
     throw "authTokenSecret is insecure"
+  }
+  if (!Array.isArray(config.allowedSSOOrigins) || config.allowedSSOOrigins.find((x) => typeof(x) !== "string") !== undefined) {
+    throw "Missing allowedSSOOrigins";
   }
 } catch (err) {
   console.log("\n")

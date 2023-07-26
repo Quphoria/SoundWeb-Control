@@ -22,7 +22,7 @@ const AccessDenied = props => {
 
     if (!user?.isLoggedIn && !new_app_id) {
       var url = { pathname: sso_logout_url };
-      if (router.query.callback) url.query = { callback: router.query.callback };
+      if (router.query.callback) url.query = { callback: JSON.parse(router.query.callback) };
       Router.push(url);
       return;
     };
