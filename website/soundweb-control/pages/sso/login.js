@@ -31,6 +31,16 @@ const Login = props => {
     }
   }, [user, router.query]);
 
+  function cancelLogin() {
+    const cancelUrl = (router && router.query && router.query.logout_callback) ? JSON.parse(router.query.logout_callback) : undefined;
+
+    if (cancelUrl) {
+      Router.push(cancelUrl);
+    } else { 
+      window.close();
+    }
+  }
+
   const [errorMsg, setErrorMsg] = useState("");
 
   return (
@@ -51,6 +61,7 @@ const Login = props => {
         <div className="login">
           <LoginForm
             errorMessage={errorMsg}
+            cancelFunction={cancelLogin}
             onSubmit={async function handleSubmit(event) {
               event.preventDefault();
 

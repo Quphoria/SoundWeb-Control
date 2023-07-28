@@ -3,6 +3,7 @@ import Button from "react-bootstrap/Button"
 export default function LoginForm({
   errorMessage,
   onSubmit,
+  cancelFunction,
 }) {
   return (
     <form onSubmit={onSubmit}>
@@ -15,12 +16,25 @@ export default function LoginForm({
         <input type="password" name="password" required autoComplete="current-password" />
       </label>
 
-      <Button 
-        variant="outline-light"
-        type="submit"
-        >
-        Login
-      </Button>
+      <div className="login_buttons">
+        <Button 
+          style={{width: "100%"}}
+          variant="outline-light"
+          type="submit"
+          >
+          Login
+        </Button>
+        {cancelFunction && <div style={{width: "0.5em"}}></div>}
+        {cancelFunction && 
+        <Button 
+          style={{width: "100%"}}
+          variant="outline-light"
+          onClick={cancelFunction}
+          >
+          Cancel
+        </Button>}
+        
+      </div>
 
       {errorMessage && <p className="error">{errorMessage}</p>}
 
@@ -42,6 +56,9 @@ export default function LoginForm({
         .error {
           color: red;
           margin: 1rem 0 0;
+        }
+        .login_buttons {
+          display: flex
         }
       `}</style>
     </form>

@@ -85,7 +85,7 @@ try {
     config = assign(config, defaultConfig, [key]);
   }
 
-  if (invalid_optional_config) throw "Invalid optional config entry"
+  if (invalid_optional_config) throw "Invalid optional config entry";
 
 } catch (err) {
   console.log("\n")
