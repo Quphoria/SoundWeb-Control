@@ -98,7 +98,7 @@ try {
   if (invalid_optional_config) {
     fs.writeFileSync(filename, stringify(config, null, 2));
   } else {
-    fs.writeFileSync(filename, defaultConfig);
+    fs.writeFileSync(filename, defaultConfigString);
     throw "Failed to load config";
   }
 }
