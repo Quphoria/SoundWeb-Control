@@ -2,7 +2,8 @@ import React from "react"
 import { Global, css } from "@emotion/react"
 
 import { PageBody, Footer } from "../styles"
-import { github_url } from "../lib/siteUrls"
+import { favicon_url, github_url } from "../lib/siteUrls"
+import Head from "next/head"
 
 const SSOLayout = ({ children }) => {
   return (
