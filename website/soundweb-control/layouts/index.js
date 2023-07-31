@@ -6,7 +6,8 @@ import { useEffect } from "react"
 import { Nav, PageBody, Footer } from "../styles"
 import useUser from "../lib/useUser"
 import fetchJson from "../lib/fetchJson"
-import { home_url, panel_url, admin_url, login_url, api_logout_url, github_url } from "../lib/siteUrls"
+import { home_url, panel_url, admin_url, login_url, api_logout_url, github_url, favicon_url } from "../lib/siteUrls"
+import Head from "next/head"
 
 const Layout = ({ children }) => {
   const { user, mutateUser } = useUser();
@@ -21,6 +22,10 @@ const Layout = ({ children }) => {
   
   return (
     <React.Fragment>
+      <Head>
+        <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+        <link rel="icon" href={favicon_url} />
+      </Head>
       <Global
         styles={css`
           #__next {

@@ -62,7 +62,6 @@ const Admin = props => {
     <Layout>
       <Head>
           <title>SoundWeb Admin</title>
-          <meta name="viewport" content="initial-scale=1.0, width=device-width" />
       </Head>
       <SSOSettingsDialog state={ssoSettingsModalState} setState={setSSOSettingsModalState} />
       <UploadPanelDialog state={uploadPanelModalState} setState={setUploadPanelModalState} />

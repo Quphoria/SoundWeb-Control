@@ -153,7 +153,6 @@ class Tabs extends React.Component {
       <div>
         <Head>
           <title>SoundWeb Panel</title>
-          <meta name="viewport" content="initial-scale=1.0, width=device-width" />
         </Head>
         <LoadingOverlay
           active={!this.state.connected && tab_count >= 0}

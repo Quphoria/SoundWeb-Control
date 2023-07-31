@@ -1,9 +1,8 @@
-import Head from 'next/head'
 import Link from "next/link"
 
 import Layout from "../layouts"
 import useUser from '../lib/useUser'
-import { panel_url, login_url, app_title, favicon_url } from '../lib/siteUrls'
+import { panel_url, login_url, app_title } from '../lib/siteUrls'
 import { Rainbow, Spacer } from '../styles'
 
 export default function Home() {
@@ -12,11 +11,6 @@ export default function Home() {
   return (
     <Layout>
     <div className="container">
-      <Head>
-        <title>{app_title}</title>
-        <link rel="icon" href={favicon_url} />
-      </Head>
-
       <main>
         <h1 className="title">
           <Rainbow>{app_title}</Rainbow>

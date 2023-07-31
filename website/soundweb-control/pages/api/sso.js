@@ -8,7 +8,12 @@ import { config } from "../../config/config";
 import { sso_login_url, sso_logout_url, sso_access_denied_url } from "../../lib/siteUrls";
 
 function setCORSHeaders(req, res) {
-  if (!config.allowedSSOOrigins.includes(req.headers.origin)) return;
+  if (!req.headers.origin) return;
+
+  if (!config.allowedSSOOrigins.includes(req.headers.origin)) {
+    console.log(`SSO CORS Origin Blocked: ${req.headers.origin}`);
+    return;
+  };
 
   // Website you wish to allow to connect
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin);

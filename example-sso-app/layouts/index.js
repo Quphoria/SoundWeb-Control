@@ -4,7 +4,7 @@ import { Global, css } from "@emotion/react"
 import { useEffect } from "react"
 
 import useUser from "../lib/useUser"
-import { admin_url, home_url, login_url, logout_url, panel_url } from "../lib/siteUrls"
+import { admin_url, app_title, favicon_url, home_url, login_url, logout_url, panel_url } from "../lib/siteUrls"
 import { Nav, PageBody, Footer } from "../styles"
 import { refreshToken } from "../lib/ssoLogin"
 
@@ -27,6 +27,11 @@ const Layout = ({ children }) => {
 
   return (
     <React.Fragment>
+      <Head>
+        <title>{app_title}</title>
+        <link rel="icon" href={favicon_url} />
+        <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+      </Head>
       <Global
         styles={css`
           #__next {

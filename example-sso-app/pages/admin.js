@@ -2,11 +2,10 @@ import React from "react"
 import Layout from "../layouts"
 import Link from "next/link"
 import redirect from 'nextjs-redirect'
-import Head from "next/head"
 
 import useUser from "../lib/useUser"
 import { Padding, Rainbow } from "../styles"
-import { app_title, home_url, login_url } from "../lib/siteUrls"
+import { home_url, login_url } from "../lib/siteUrls"
 
 export default function Admin() {
 
@@ -39,10 +38,6 @@ export default function Admin() {
 
   return (
     <Layout>
-      <Head>
-          <title>{app_title}</title>
-          <meta name="viewport" content="initial-scale=1.0, width=device-width" />
-      </Head>
       <Padding>
         <h2>Admin</h2>
         <h4>Hello <Rainbow>{user.info?.username}</Rainbow></h4>
