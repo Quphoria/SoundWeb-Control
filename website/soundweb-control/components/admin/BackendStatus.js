@@ -101,7 +101,7 @@ class BackendStatus extends React.Component {
     const all_connected = Object.values(nodes).every(x => x === true);
 
     return (
-      <div className="card bg-transparent border-secondary" style={{
+      <div className="card bg-transparent border-secondary text-white" style={{
           padding: "0.5em", 
           marginBottom: "0.2em", 
           width: "fit-content"
