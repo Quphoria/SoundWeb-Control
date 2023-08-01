@@ -1,12 +1,11 @@
 import React from "react"
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import Router from "next/router";
 
 import Layout from "../layouts"
 import useUser from "../lib/useUser";
 import { Rainbow, Padding, Spacer } from "../styles";
-import { app_title, logout_url, panel_url } from "../lib/siteUrls";
+import { app_title, base_url, logout_url, panel_url } from "../lib/siteUrls";
 import sendToken from "../lib/ssoLogin";
 
 export default function Login() {
@@ -34,7 +33,7 @@ export default function Login() {
       body: JSON.stringify({
         sso_app_id: user.sso.app_id,
         callback: window.location.href,
-        logout_callback: new URL(logout_url, window.location.href).href,
+        logout_callback: new URL(base_url + logout_url, window.location.href).href,
         // Maybe we add callback for access denied? to go to homepage
         challenge: user.sso.challenge
       })
@@ -45,7 +44,7 @@ export default function Login() {
           console.log("Invalid Redirect Url:", data.url);
           throw new Error("Invalid Redirect Url");
         }
-        Router.push(user.sso.url_base + data.url);
+        window.location = user.sso.url_base + data.url; // Router.push() automatically appends basePath, we don't want that to happen here
       } else if (data?.status == "ok") {
         sendToken(data.data, data.signature, () => {
           mutateUser();

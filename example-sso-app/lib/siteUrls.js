@@ -1,15 +1,20 @@
+import { basePath } from "../next.config";
 
 export const github_url = "https://github.com/Quphoria";
 
 export const app_title = "Example App";
 
-const base = "";
+const base = basePath; // Take basePath from next.config.js
+export const base_url = base;
 
-export const home_url = `${base}/`;
-export const panel_url = `${base}/panel`;
-export const admin_url = `${base}/admin`;
-export const login_url = `${base}/login`;
-export const logout_url = `${base}/logout`;
+// NextJS automaticallys add the basePath to the following urls
+export const home_url = `/`;
+export const panel_url = `/panel`;
+export const admin_url = `/admin`;
+export const login_url = `/login`;
+export const logout_url = `/logout`;
+
+// NextJS doesn't automatically add the basePath to the following urls
 export const favicon_url = `${base}/favicon.ico`;
 
 const api = `${base}/api`;
