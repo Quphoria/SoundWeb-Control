@@ -67,7 +67,7 @@ def should_send(client, msg=None):
     return msg["parameter"] in user_subs[0] or msg["parameter"] in user_subs[1]
 
 def subscribe(p: Packet, addr: str) -> Optional[dict]:
-    global subscribed_params
+    global subscribed_params, param_cache, param_cache_lock, pc_param_cache, param_cache_lock
     sub_handler_node = get_packet_node_handler(p)
     if sub_handler_node is None:
         return None
@@ -76,10 +76,14 @@ def subscribe(p: Packet, addr: str) -> Optional[dict]:
     is_percent = p.message_type ==  MessageType.SUBSCRIBE_PERCENT
     param_str = p.param_str()
 
+    check_cache = False
     if is_percent:
         with PC_SUBS_lock:
             if param_str in PC_SUBS:
                 PC_SUBS[param_str].add(addr)
+                check_cache = True
+        if check_cache:
+            with pc_param_cache_lock:
                 if param_str in pc_param_cache:
                     return pc_param_cache[param_str][1]
                 # if we didn't find it in the param cache, try and resubscribe
@@ -87,9 +91,13 @@ def subscribe(p: Packet, addr: str) -> Optional[dict]:
         with SUBS_lock:
             if param_str in SUBS:
                 SUBS[param_str].add(addr)
+                check_cache = True
+        if check_cache:
+            with param_cache_lock:
                 if param_str in param_cache:
                     return param_cache[param_str][1]
                 # if we didn't find it in the param cache, try and resubscribe
+
     
     # send unsub first so we get param sent to us
     p2 = p.copy()
@@ -130,7 +138,7 @@ def subscribe(p: Packet, addr: str) -> Optional[dict]:
     return None
 
 def unsubscribe(param_str: str, is_percent: bool, addr: str, fallback_packet: Packet = None):
-    global subscribed_params
+    global subscribed_params, param_cache, param_cache_lock, pc_param_cache, param_cache_lock
     unsub_packet = fallback_packet
     if is_percent:
         with PC_SUBS_lock:
@@ -168,13 +176,19 @@ def unsubscribe(param_str: str, is_percent: bool, addr: str, fallback_packet: Pa
         with PC_SUBS_lock:
             if param_str in PC_SUBS:
                 del PC_SUBS[param_str]
+        with pc_param_cache_lock:
+            if param_str in pc_param_cache:
+                del pc_param_cache[param_str]
     else:
         with SUBS_lock:
             if param_str in SUBS:
                 del SUBS[param_str]
+        with param_cache_lock:
+            if param_str in param_cache:
+                del param_cache[param_str]
 
 async def resp_broadcast(node: str):
-    global param_cache, param_cache_lock, ws_server, WEBSOCKET_LIST
+    global param_cache, param_cache_lock, pc_param_cache, param_cache_lock, ws_server, WEBSOCKET_LIST
     while True:
         # Get a "work item" out of the queue.
         msg = await resp_queues[node].async_q.get()
