@@ -32,6 +32,7 @@ const Admin = props => {
   });
   const [ssoSettingsModalState, setSSOSettingsModalState] = useState({show: false});
   const [uploadPanelModalState, setUploadPanelModalState] = useState({show: false});
+  const [backendDebugModalState, setBackendDebugModalState] = useState({show: false});
   const [backendStatusRestartCallback, setBackendStatusRestartCallback] = useState({callback: null});
 
   // Server-render loading state
@@ -68,7 +69,11 @@ const Admin = props => {
       <Padding>
         <h2>Admin</h2>
         <h4>Hello <Rainbow>{user.username}#{user.id}</Rainbow></h4>
-        <BackendStatus websocket={websocket_uri} setRestartCallback={setBackendStatusRestartCallback} />
+        <BackendStatus
+          websocket={websocket_uri}
+          setRestartCallback={setBackendStatusRestartCallback}
+          backendDebugModalState={backendDebugModalState}
+          setBackendDebugModalState={setBackendDebugModalState} />
         <UserManager user={user} />
       </Padding>
       <div style={{
@@ -82,6 +87,8 @@ const Admin = props => {
           style={{textDecoration: "underline", color: "var(--bs-info)"}}>SSO Settings</a> &nbsp;&nbsp;
         <a onClick={backendStatusRestartCallback.callback}
           style={{textDecoration: "underline", color: "var(--bs-danger)"}}>Restart Backend</a> &nbsp;&nbsp;
+        <a onClick={() => setBackendDebugModalState({show: true})}
+          style={{textDecoration: "underline", color: "var(--bs-warning)"}}>Backend Debug</a> &nbsp;&nbsp;
         <a onClick={() => setUploadPanelModalState({show: true})}
           style={{textDecoration: "underline", color: "var(--bs-info)"}}>Upload Panel File</a>
       </div>

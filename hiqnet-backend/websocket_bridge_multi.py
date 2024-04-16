@@ -5,6 +5,7 @@ from config import load_config
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 import socket, uuid
+from typing import Optional, Dict, Set
 
 from websocket_server import WebsocketServer
 from hiqnet_proto import *
@@ -22,8 +23,21 @@ WEBSOCKET_LIST = []
 WS_USER_DATA = {}
 RUN_SERVER = True
 
+# used to store subscriptions, to know when to unsubscribe
+SUBS_lock = threading.Lock()
+SUBS: Dict[str, Set[str]] = {}
+UNSUB_PACKETS: Dict[str, Packet] = {}
+
+PC_SUBS_lock = threading.Lock()
+PC_SUBS: Dict[str, Set[str]] = {}
+PC_UNSUB_PACKETS: Dict[str, Packet] = {}
+# used to store unsub packets for later
+
 param_cache_lock = threading.Lock()
 param_cache = {}
+# separate cache for percent values (in case we get both)
+pc_param_cache_lock = threading.Lock()
+pc_param_cache = {}
 param_rebroadcast_time = 5 # 5 seconds
 
 client_thread_status = {}
@@ -47,8 +61,117 @@ def should_send(client, msg=None):
         return True
     if not addr in WS_USER_DATA:
         return False
-    _, _, user_sub = WS_USER_DATA[addr]
-    return msg["parameter"] in user_sub
+    _, _, user_subs = WS_USER_DATA[addr]
+    if user_subs is None:
+        return False
+    return msg["parameter"] in user_subs[0] or msg["parameter"] in user_subs[1]
+
+def subscribe(p: Packet, addr: str) -> Optional[dict]:
+    global subscribed_params
+    sub_handler_node = get_packet_node_handler(p)
+    if sub_handler_node is None:
+        return None
+    
+    p.value = config["subscription_rate_ms"]
+    is_percent = p.message_type ==  MessageType.SUBSCRIBE_PERCENT
+    param_str = p.param_str()
+
+    if is_percent:
+        with PC_SUBS_lock:
+            if param_str in PC_SUBS:
+                PC_SUBS[param_str].add(addr)
+                if param_str in pc_param_cache:
+                    return pc_param_cache[param_str][1]
+                # if we didn't find it in the param cache, try and resubscribe
+    else:
+        with SUBS_lock:
+            if param_str in SUBS:
+                SUBS[param_str].add(addr)
+                if param_str in param_cache:
+                    return param_cache[param_str][1]
+                # if we didn't find it in the param cache, try and resubscribe
+    
+    # send unsub first so we get param sent to us
+    p2 = p.copy()
+    has_unsub = False
+    if p.message_type == MessageType.SUBSCRIBE:
+        p2.message_type = MessageType.UNSUBSCRIBE
+        has_unsub = True
+    elif p.message_type == MessageType.SUBSCRIBE_PERCENT:
+        p2.message_type = MessageType.UNSUBSCRIBE_PERCENT
+        has_unsub = True
+
+    assert has_unsub, "Error generating unsub packet"
+    msg_queues[sub_handler_node].sync_q.put(p2)
+
+    msg_queues[sub_handler_node].sync_q.put(p) # resubscribe (sometimes soundweb forgets about us i think)
+
+    # append to the nodes subscribe parameters (remove old copies first)
+    for sub in subscribed_params[sub_handler_node]:
+        if sub.param_str() == p.param_str() and sub.message_type == p.message_type:
+            subscribed_params[sub_handler_node].remove(sub)
+    subscribed_params[sub_handler_node].append(p)
+    if config["subscription_debug"]:
+        print(f"Subscribing to: [{sub_handler_node}] {p.param_str()}{' %' if is_percent else ''}")
+
+    if is_percent:
+        with PC_SUBS_lock:
+            if param_str not in PC_SUBS:
+                PC_SUBS[param_str] = set()
+            PC_SUBS[param_str].add(addr)
+            PC_UNSUB_PACKETS[param_str] = p2
+    else:
+        with SUBS_lock:
+            if param_str not in SUBS:
+                SUBS[param_str] = set()
+            SUBS[param_str].add(addr)
+            UNSUB_PACKETS[param_str] = p2
+
+    return None
+
+def unsubscribe(param_str: str, is_percent: bool, addr: str, fallback_packet: Packet = None):
+    global subscribed_params
+    unsub_packet = fallback_packet
+    if is_percent:
+        with PC_SUBS_lock:
+            if param_str in PC_SUBS and addr in PC_SUBS[param_str]:
+                PC_SUBS[param_str].remove(addr)
+                if len(PC_SUBS[param_str]) != 0:
+                    return # Other clients are still subscribed, don't unsubscribe yet
+            if param_str in PC_UNSUB_PACKETS:
+                unsub_packet = PC_UNSUB_PACKETS[param_str]
+    else:
+        with SUBS_lock:
+            if param_str in SUBS and addr in SUBS[param_str]:
+                SUBS[param_str].remove(addr)
+                if len(SUBS[param_str]) != 0:
+                    return # Other clients are still subscribed, don't unsubscribe yet
+            if param_str in UNSUB_PACKETS:
+                unsub_packet = UNSUB_PACKETS[param_str]
+    
+    if not unsub_packet:
+        print("Error:", "Attempted to unsubscribe without an unsubscribe packet")
+        return
+    
+    sub_handler_node = get_packet_node_handler(unsub_packet)
+    msg_queues[sub_handler_node].sync_q.put(unsub_packet)
+    if config["subscription_debug"]:
+        print(f"Unsubscribing from: [{sub_handler_node}] {unsub_packet.param_str()}{' %' if is_percent else ''}")
+
+    # remove from the nodes subscribed parameters
+    expected_msg_type = MessageType.SUBSCRIBE_PERCENT if is_percent else MessageType.SUBSCRIBE
+    for sub in subscribed_params[sub_handler_node]:
+        if sub.param_str() == unsub_packet.param_str() and sub.message_type == expected_msg_type:
+            subscribed_params[sub_handler_node].remove(sub)
+
+    if is_percent:
+        with PC_SUBS_lock:
+            if param_str in PC_SUBS:
+                del PC_SUBS[param_str]
+    else:
+        with SUBS_lock:
+            if param_str in SUBS:
+                del SUBS[param_str]
 
 async def resp_broadcast(node: str):
     global param_cache, param_cache_lock, ws_server, WEBSOCKET_LIST
@@ -65,6 +188,17 @@ async def resp_broadcast(node: str):
                     if t - param_cache[msg["parameter"]][0] < param_rebroadcast_time:
                         continue
                 param_cache[msg["parameter"]] = (t, data)
+        elif msg["type"] == "SET_PERCENT":
+            with pc_param_cache_lock:
+                t = time.time()
+                # check if value has stayed the same in the cache
+                if msg["parameter"] in pc_param_cache and pc_param_cache[msg["parameter"]][1] == data:
+                    # if it has not been the minimum rebroadcast time, don't bother resending the data
+                    if t - pc_param_cache[msg["parameter"]][0] < param_rebroadcast_time:
+                        continue
+                pc_param_cache[msg["parameter"]] = (t, data)
+        if config["hiqnet_debug"]:
+            print("HiQnet RX:", msg)
         SEND_LIST = filter(partial(should_send, msg=msg), WEBSOCKET_LIST)
         if SEND_LIST:
             ws_server.send_message_to_list(SEND_LIST, data)
@@ -129,7 +263,7 @@ def ws_on_data_receive(client, server, message):
             return
         user_options = user_data.get("options", {})
         with WS_DATA_LOCK:
-            WS_USER_DATA[client["address"]] = (user_data, user_options, [])
+            WS_USER_DATA[client["address"]] = (user_data, user_options, ([], []))
             if not user_options.get("status", False):
                 WEBSOCKET_LIST.append(client)
         # send __test__ to acknowledge websocket auth
@@ -152,6 +286,25 @@ def ws_on_data_receive(client, server, message):
                 "type": "version",
                 "data": VERSION
             }))
+    elif message == "debug":
+        if user_data.get("admin", False):
+            server.send_message(client, json.dumps({
+                "type": "debug",
+                "data": (config["subscription_debug"] and config["hiqnet_debug"])
+            }))
+    elif message == "enable_debug" or message == "disable_debug":
+        enable = message == "enable_debug"
+        if user_data.get("admin", False):
+            if enable:
+                print("Debug enabled by:", user_data["username"])
+            else:
+                print("Debug disabled by:", user_data["username"])
+            config["subscription_debug"] = enable
+            config["hiqnet_debug"] = enable
+            server.send_message(client, json.dumps({
+                "type": "debug",
+                "data": enable
+            }))
     elif message == "restart":
         if user_data.get("admin", False):
             print(f"Restart attempted by {user_data['username']}")
@@ -160,7 +313,11 @@ def ws_on_data_receive(client, server, message):
         try:
             data = json.loads(message)
             if data.get("type", "") == "UNSUBSCRIBE_ALL":
-                user_subs = []
+                for param_str in user_subs[0]:
+                    unsubscribe(param_str, False, client["address"])
+                for param_str in user_subs[1]:
+                    unsubscribe(param_str, True, client["address"])
+                user_subs = ([], [])
                 with WS_DATA_LOCK:
                     WS_USER_DATA[client["address"]] = (user_data, user_options, user_subs)
             else:
@@ -169,43 +326,22 @@ def ws_on_data_receive(client, server, message):
                 if sub_handler_node is None:
                     return
                 # print(p, flush=True)
-                sent_value = False
                 if p.message_type == MessageType.SUBSCRIBE or p.message_type == MessageType.SUBSCRIBE_PERCENT:
-                    p.value = config["subscription_rate_ms"]
-                    for sub in subscribed_params[sub_handler_node]:
-                        if sub.param_str() == p.param_str() and sub.message_type == p.message_type:
-                            if p.param_str() in param_cache: # avoid resubscribing to parameters if value cached
-                                server.send_message(client, param_cache[p.param_str()][1])
-                                sent_value = True
-                            else:
-                                subscribed_params[sub_handler_node].remove(sub)
-                    if not sent_value: # avoid resubscribing to parameters
-                        # send unsub first so we get param sent to us
-                        p2 = p.copy()
-                        has_unsub = False
-                        if p.message_type == MessageType.SUBSCRIBE:
-                            p2.message_type = MessageType.UNSUBSCRIBE
-                            has_unsub = True
-                        elif p.message_type == MessageType.SUBSCRIBE_PERCENT:
-                            p2.message_type = MessageType.UNSUBSCRIBE_PERCENT
-                            has_unsub = True
-                        if has_unsub:
-                            msg_queues[sub_handler_node].sync_q.put(p2)
+                    value = subscribe(p, client["address"])
+                    if value is not None:
+                        server.send_message(client, value)
 
-                        subscribed_params[sub_handler_node].append(p)
-                        # msg_queues[sub_handler_node].sync_q.put(p)
-                    msg_queues[sub_handler_node].sync_q.put(p) # resubscribe (sometimes soundweb forgets about us i think)
-                    if p.param_str not in user_subs:
-                        user_subs.append(p.param_str())
+                    is_percent = p.message_type == MessageType.SUBSCRIBE_PERCENT
+                    if p.param_str not in user_subs[1 if is_percent else 0]:
+                        user_subs[1 if is_percent else 0].append(p.param_str())
                         with WS_DATA_LOCK:
                             WS_USER_DATA[client["address"]] = (user_data, user_options, user_subs)
                 elif p.message_type == MessageType.UNSUBSCRIBE or p.message_type == MessageType.UNSUBSCRIBE_PERCENT:
-                    for sub in subscribed_params[sub_handler_node]:
-                        if sub.param_str() == p.param_str() and sub.message_type == p.message_type:
-                            subscribed_params[sub_handler_node].remove(sub)
-                    msg_queues[sub_handler_node].sync_q.put(p)
-                    if p.param_str() in user_subs:
-                        user_subs.remove(p.param_str())
+                    is_percent = p.message_type == MessageType.UNSUBSCRIBE_PERCENT
+                    unsubscribe(p.param_str(), is_percent, client["address"], fallback_packet=p)
+
+                    if p.param_str() in user_subs[1 if is_percent else 0]:
+                        user_subs[1 if is_percent else 0].remove(p.param_str())
                         with WS_DATA_LOCK:
                             WS_USER_DATA[client["address"]] = (user_data, user_options, user_subs)
                 else:
@@ -220,9 +356,14 @@ def ws_on_connection_close(client, server):
     with WS_DATA_LOCK:
         if client in WEBSOCKET_LIST:
             WEBSOCKET_LIST.remove(client)
-        ip = client["address"]
-        if ip in WS_USER_DATA:
-            WS_USER_DATA.pop(ip)
+        addr = client["address"]
+        if addr in WS_USER_DATA:
+            _, _, user_subs = WS_USER_DATA.pop(addr)
+            if user_subs is not None:
+                for param_str in user_subs[0]:
+                    unsubscribe(param_str, False, addr)
+                for param_str in user_subs[1]:
+                    unsubscribe(param_str, True, addr)
 
 health_check_queue = None
 

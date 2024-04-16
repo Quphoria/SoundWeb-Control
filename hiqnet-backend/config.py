@@ -13,6 +13,8 @@ def default_config() -> Dict[str, Any]:
         "server_gateway": "192.168.1.1",
         "server_mac_address": "AA:BB:CC:DD:EE:FF",
         "server_node_address": "0xfb00",
+        "subscription_debug": False,
+        "hiqnet_debug": False,
     }
 
 def check_list_type(l: list, v_type) -> bool:
@@ -59,6 +61,8 @@ config_tests = {
     "server_gateway": lambda x: check_ip_address(x),
     "server_mac_address": lambda x: check_mac_address(x),
     "server_node_address": lambda x: check_node_address(x),
+    "subscription_debug": lambda x: isinstance(x, bool),
+    "hiqnet_debug":  lambda x: isinstance(x, bool),
 }
 
 def load_config(config_filename: str = "config.json", disable_save = False) -> dict:

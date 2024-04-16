@@ -2,6 +2,7 @@ import React from 'react'
 import { withRouter } from "next/router"
 
 import WebSocket from '../Websocket'
+import BackendDebugDialog from './BackendDebugDialog';
 
 class BackendStatus extends React.Component {
   constructor(props) {
@@ -9,7 +10,7 @@ class BackendStatus extends React.Component {
     if (this.props.setRestartCallback) {
       this.props.setRestartCallback({callback: (() => {this.restartBackend()}).bind(this)});
     }
-    this.state = {connected: false, nodes: {}, version: "Unknown"};
+    this.state = {connected: false, nodes: {}, version: "Unknown", debug: false};
   }
 
   handleData(msg) {
@@ -20,6 +21,9 @@ class BackendStatus extends React.Component {
         break;
       case "version":
         this.setState({version: data});
+        break;
+      case "debug":
+        this.setState({debug: data})
         break;
     }
   }
@@ -42,6 +46,11 @@ class BackendStatus extends React.Component {
     console.log("Connected");
     this.websocket.sendMessage("status"); // Get status
     this.websocket.sendMessage("version"); // Get version
+    this.websocket.sendMessage("debug"); // Get debug
+  }
+
+  setDebug(enabled) {
+    if (this.state.connected) this.websocket.sendMessage(enabled ? "enable_debug" : "disable_debug");
   }
 
   setupWebsocket() {
@@ -135,6 +144,12 @@ class BackendStatus extends React.Component {
           </div>
           {this.frontendVersion()}
         </div>
+        <BackendDebugDialog
+          state={this.props.backendDebugModalState}
+          setState={this.props.setBackendDebugModalState}
+          connected={this.state.connected}
+          debug={this.state.debug}
+          setDebug={this.setDebug.bind(this)} />
       </div>
     );
   }
