@@ -112,7 +112,7 @@ def subscribe(p: Packet, addr: str) -> Optional[dict]:
             subscribed_params[sub_handler_node].remove(sub)
     subscribed_params[sub_handler_node].append(p)
     if config["subscription_debug"]:
-        print(f"Subscribing to: [{sub_handler_node}] {p.param_str()}{' %' if is_percent else ''}")
+        print(f"Subscribing to: [{sub_handler_node}] {p.param_str()}{' %' if is_percent else ''}", flush=True)
 
     if is_percent:
         with PC_SUBS_lock:
@@ -150,13 +150,13 @@ def unsubscribe(param_str: str, is_percent: bool, addr: str, fallback_packet: Pa
                 unsub_packet = UNSUB_PACKETS[param_str]
     
     if not unsub_packet:
-        print("Error:", "Attempted to unsubscribe without an unsubscribe packet")
+        print("Error:", "Attempted to unsubscribe without an unsubscribe packet", flush=True)
         return
     
     sub_handler_node = get_packet_node_handler(unsub_packet)
     msg_queues[sub_handler_node].sync_q.put(unsub_packet)
     if config["subscription_debug"]:
-        print(f"Unsubscribing from: [{sub_handler_node}] {unsub_packet.param_str()}{' %' if is_percent else ''}")
+        print(f"Unsubscribing from: [{sub_handler_node}] {unsub_packet.param_str()}{' %' if is_percent else ''}", flush=True)
 
     # remove from the nodes subscribed parameters
     expected_msg_type = MessageType.SUBSCRIBE_PERCENT if is_percent else MessageType.SUBSCRIBE
@@ -198,7 +198,7 @@ async def resp_broadcast(node: str):
                         continue
                 pc_param_cache[msg["parameter"]] = (t, data)
         if config["hiqnet_debug"]:
-            print("HiQnet RX:", msg)
+            print("HiQnet RX:", msg, flush=True)
         SEND_LIST = filter(partial(should_send, msg=msg), WEBSOCKET_LIST)
         if SEND_LIST:
             ws_server.send_message_to_list(SEND_LIST, data)
@@ -207,7 +207,7 @@ def get_packet_node_handler(p: Packet) -> str:
     global config, nodes
     if hex(p.node) in config["nodes"]:
         return hex(p.node)
-    print(f"Node {hex(p.node)} not available, please add a config entry for it")
+    print(f"Node {hex(p.node)} not available, please add a config entry for it", flush=True)
     return None
 
 previous_tokens = {}
@@ -296,9 +296,9 @@ def ws_on_data_receive(client, server, message):
         enable = message == "enable_debug"
         if user_data.get("admin", False):
             if enable:
-                print("Debug enabled by:", user_data["username"])
+                print("Debug enabled by:", user_data["username"], flush=True)
             else:
-                print("Debug disabled by:", user_data["username"])
+                print("Debug disabled by:", user_data["username"], flush=True)
             config["subscription_debug"] = enable
             config["hiqnet_debug"] = enable
             server.send_message(client, json.dumps({
@@ -307,7 +307,7 @@ def ws_on_data_receive(client, server, message):
             }))
     elif message == "restart":
         if user_data.get("admin", False):
-            print(f"Restart attempted by {user_data['username']}")
+            print(f"Restart attempted by {user_data['username']}", flush=True)
             RUN_SERVER = False
     elif not user_options.get("statusonly", False):
         try:
@@ -379,7 +379,7 @@ def update_health(status):
             for t_id, t_status in status.items():
                 f.write(f"{t_id}: {'Healthy' if t_status else 'Unhealthy'}\n")
         else:
-            print("(Empty)")
+            print("(Empty)", flush=True)
 
 async def health_check():
     global client_thread_status, RUN_SERVER
@@ -420,7 +420,7 @@ def test_udp_receive(bind_ip, hiqnet_port, dest_ip):
                     if data == test_str:
                         s.close()
                         s2.close()
-                        print("UDP test passed")
+                        print("UDP test passed", flush=True)
                         return True
             except (TimeoutError, socket.timeout):
                 continue
@@ -431,7 +431,7 @@ def test_udp_receive(bind_ip, hiqnet_port, dest_ip):
         s.close()
         s2.close()
     print("Failed to receive UDP message sent to itself!")
-    print(f"Please check that the server_ip_address (& related) config values are correct and UDP port {hiqnet_port} is accessible at this IP")
+    print(f"Please check that the server_ip_address (& related) config values are correct and UDP port {hiqnet_port} is accessible at this IP", flush=True)
     return False
 
 
@@ -491,7 +491,7 @@ async def main():
 if __name__ == "__main__":
     update_health({}) # set healthy to false when starting
     config = load_config("config/config.json")
-    print("HiQnet Websocket Proxy", VERSION)
+    print("HiQnet Websocket Proxy", VERSION, flush=True)
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
