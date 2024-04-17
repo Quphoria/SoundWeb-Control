@@ -76,26 +76,37 @@ def subscribe(p: Packet, addr: str) -> Optional[dict]:
     is_percent = p.message_type ==  MessageType.SUBSCRIBE_PERCENT
     param_str = p.param_str()
 
-    check_cache = False
+    old_cached_value = None
+    invalidate_cache = True
     if is_percent:
         with PC_SUBS_lock:
             if param_str in PC_SUBS:
                 PC_SUBS[param_str].add(addr)
-                check_cache = True
-        if check_cache:
-            with pc_param_cache_lock:
-                if param_str in pc_param_cache:
-                    return pc_param_cache[param_str][1]
+                invalidate_cache = False
+        with pc_param_cache_lock:
+            if param_str in pc_param_cache:
+                t, old_cached_value = pc_param_cache[param_str]
+                # entry is not invalid
+                if t is not None:
+                    if invalidate_cache:
+                        pc_param_cache[param_str] = (None, old_cached_value)
+                    else:
+                        return old_cached_value
                 # if we didn't find it in the param cache, try and resubscribe
     else:
         with SUBS_lock:
             if param_str in SUBS:
                 SUBS[param_str].add(addr)
-                check_cache = True
-        if check_cache:
-            with param_cache_lock:
-                if param_str in param_cache:
-                    return param_cache[param_str][1]
+                invalidate_cache = False
+        with param_cache_lock:
+            if param_str in param_cache:
+                t, old_cached_value = param_cache[param_str]
+                # entry is not invalid
+                if t is not None:
+                    if invalidate_cache:
+                        param_cache[param_str] = (None, old_cached_value)
+                    else:
+                        return old_cached_value
                 # if we didn't find it in the param cache, try and resubscribe
 
     
@@ -135,7 +146,7 @@ def subscribe(p: Packet, addr: str) -> Optional[dict]:
             SUBS[param_str].add(addr)
             UNSUB_PACKETS[param_str] = p2
 
-    return None
+    return old_cached_value
 
 def unsubscribe(param_str: str, is_percent: bool, addr: str, fallback_packet: Packet = None):
     global subscribed_params, param_cache, param_cache_lock, pc_param_cache, param_cache_lock
@@ -178,14 +189,16 @@ def unsubscribe(param_str: str, is_percent: bool, addr: str, fallback_packet: Pa
                 del PC_SUBS[param_str]
         with pc_param_cache_lock:
             if param_str in pc_param_cache:
-                del pc_param_cache[param_str]
+                # invalidate cache entry (set t to None)
+                pc_param_cache[param_str] = (None, pc_param_cache[param_str][1])
     else:
         with SUBS_lock:
             if param_str in SUBS:
                 del SUBS[param_str]
         with param_cache_lock:
             if param_str in param_cache:
-                del param_cache[param_str]
+                # invalidate cache entry (set t to None)
+                param_cache[param_str] = (None, param_cache[param_str][1])
 
 async def resp_broadcast(node: str):
     global param_cache, param_cache_lock, pc_param_cache, param_cache_lock, ws_server, WEBSOCKET_LIST
