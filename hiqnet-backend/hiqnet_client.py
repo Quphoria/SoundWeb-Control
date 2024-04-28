@@ -168,6 +168,7 @@ class HiQnetThread(threading.Thread):
         self.subscribed_params = subscribed_params
         self.health_queue.sync_q.put({"id": self.h_id, "status": False})
         self.exitFlag = False
+        self.restartFlag = False
         self.fast_reconnect = False
     async def createClient(self, loop):
         transport, protocol = await loop.create_connection(
@@ -176,7 +177,7 @@ class HiQnetThread(threading.Thread):
                 self.subscribed_params, self.health_queue.sync_q, self.disco_info, loop),
             self.hiqnet_ip, self.hiqnet_port)
         n = 0
-        while not self.exitFlag:
+        while not self.exitFlag and not self.restartFlag:
             await asyncio.sleep(1)
             n += 1  # check connection is alive every 10 seconds
             if n >= protocol.keepalive_interval_ms / 1000:
@@ -198,6 +199,7 @@ class HiQnetThread(threading.Thread):
     def run(self):
         print(self.name, "started", flush=True)
         while not self.exitFlag:
+            self.restartFlag = False
             self.fast_reconnect = False
             try:
                 loop = asyncio.new_event_loop()
@@ -208,7 +210,7 @@ class HiQnetThread(threading.Thread):
                 loop.close()
             except Exception as ex:
                 print(self.name, "Error:", ex, flush=True)
-                self.health_queue.sync_q.put({"id": self.h_id, "status": False})
+            self.health_queue.sync_q.put({"id": self.h_id, "status": False})
             if not self.exitFlag:
                 if self.fast_reconnect:
                     print(self.name, "HiQnet thread timeout, Reconnecting now", flush=True)
@@ -233,10 +235,12 @@ class HiQnetUDPListenerThread(threading.Thread):
         self.health_queue = health_check_queue
         self.health_queue.sync_q.put({"id": self.h_id, "status": False})
         self.exitFlag = False
+        self.restartFlag = False
 
     def run(self):
         print(self.name, "started", flush=True)
         while not self.exitFlag:
+            self.restartFlag = False
             s = None
             test_socket = None
 
@@ -246,6 +250,11 @@ class HiQnetUDPListenerThread(threading.Thread):
 
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                try:
+                    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+                except AttributeError:
+                    pass # Some systems don't support SO_REUSEPORT
                 s.bind((self.bind_ip, self.hiqnet_port))
                 s.settimeout(1)
                 test_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -254,7 +263,7 @@ class HiQnetUDPListenerThread(threading.Thread):
 
                 seq_cache = {}
 
-                while not self.exitFlag:
+                while not self.exitFlag and not self.restartFlag:
                     # send test packet
                     if time.time() - last_test > UDP_TEST_INTERVAL:
                         last_test = time.time()
@@ -334,8 +343,8 @@ class HiQnetUDPListenerThread(threading.Thread):
                 
             except Exception as ex:
                 print(self.name, "Error:", ex, flush=True)
-                self.health_queue.sync_q.put({"id": self.h_id, "status": False})
             finally:
+                self.health_queue.sync_q.put({"id": self.h_id, "status": False})
                 if s:
                     try:
                         s.close()

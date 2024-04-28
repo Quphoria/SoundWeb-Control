@@ -14,6 +14,7 @@ from hiqnet_client import HiQnetThread, HiQnetUDPListenerThread
 token_time_range = 10 * 60 * 1000 # +-10 minutes
 
 HIQNET_PORT = 3804
+FAILSAFE_SHUTDOWN_TIME = 30 # safe shutdown aborted after 30 seconds
 
 subscribed_params = {}
 
@@ -26,10 +27,12 @@ RUN_SERVER = True
 # used to store subscriptions, to know when to unsubscribe
 SUBS_lock = threading.Lock()
 SUBS: Dict[str, Set[str]] = {}
+SUBS_UNSUB_DELAY: Dict[str, float] = {}
 UNSUB_PACKETS: Dict[str, Packet] = {}
 
 PC_SUBS_lock = threading.Lock()
 PC_SUBS: Dict[str, Set[str]] = {}
+PC_SUBS_UNSUB_DELAY: Dict[str, float] = {}
 PC_UNSUB_PACKETS: Dict[str, Packet] = {}
 # used to store unsub packets for later
 
@@ -83,6 +86,8 @@ def subscribe(p: Packet, addr: str) -> Optional[dict]:
             if param_str in PC_SUBS:
                 PC_SUBS[param_str].add(addr)
                 invalidate_cache = False
+            if param_str in PC_SUBS_UNSUB_DELAY:
+                del PC_SUBS_UNSUB_DELAY[param_str]
         with pc_param_cache_lock:
             if param_str in pc_param_cache:
                 t, old_cached_value = pc_param_cache[param_str]
@@ -98,6 +103,8 @@ def subscribe(p: Packet, addr: str) -> Optional[dict]:
             if param_str in SUBS:
                 SUBS[param_str].add(addr)
                 invalidate_cache = False
+            if param_str in SUBS_UNSUB_DELAY:
+                del SUBS_UNSUB_DELAY[param_str]
         with param_cache_lock:
             if param_str in param_cache:
                 t, old_cached_value = param_cache[param_str]
@@ -148,23 +155,48 @@ def subscribe(p: Packet, addr: str) -> Optional[dict]:
 
     return old_cached_value
 
-def unsubscribe(param_str: str, is_percent: bool, addr: str, fallback_packet: Packet = None):
+def client_unsubscribe(param_str: str, is_percent: bool, addr: str, fallback_packet: Packet = None):
     global subscribed_params, param_cache, param_cache_lock, pc_param_cache, param_cache_lock
-    unsub_packet = fallback_packet
     if is_percent:
         with PC_SUBS_lock:
             if param_str in PC_SUBS and addr in PC_SUBS[param_str]:
                 PC_SUBS[param_str].remove(addr)
                 if len(PC_SUBS[param_str]) != 0:
                     return # Other clients are still subscribed, don't unsubscribe yet
-            if param_str in PC_UNSUB_PACKETS:
-                unsub_packet = PC_UNSUB_PACKETS[param_str]
+            if param_str not in PC_UNSUB_PACKETS:
+                PC_UNSUB_PACKETS[param_str] = fallback_packet
+            PC_SUBS_UNSUB_DELAY[param_str] = time.time()
     else:
         with SUBS_lock:
             if param_str in SUBS and addr in SUBS[param_str]:
                 SUBS[param_str].remove(addr)
                 if len(SUBS[param_str]) != 0:
                     return # Other clients are still subscribed, don't unsubscribe yet
+            if param_str not in UNSUB_PACKETS:
+                UNSUB_PACKETS[param_str] = fallback_packet
+            SUBS_UNSUB_DELAY[param_str] = time.time()
+    
+    if config["unsubscribe_delay_s"] == 0:
+        unsubscribe(param_str, is_percent)
+
+def unsubscribe(param_str: str, is_percent: bool):
+    global subscribed_params, param_cache, param_cache_lock, pc_param_cache, param_cache_lock
+    t = time.time()
+    unsub_packet = None
+    if is_percent:
+        with PC_SUBS_lock:
+            if param_str not in PC_SUBS_UNSUB_DELAY:
+                return
+            if t - PC_SUBS_UNSUB_DELAY[param_str] < config["unsubscribe_delay_s"]:
+                return
+            if param_str in PC_UNSUB_PACKETS:
+                unsub_packet = PC_UNSUB_PACKETS[param_str]
+    else:
+        with SUBS_lock:
+            if param_str not in SUBS_UNSUB_DELAY:
+                return
+            if t - SUBS_UNSUB_DELAY[param_str] < config["unsubscribe_delay_s"]:
+                return
             if param_str in UNSUB_PACKETS:
                 unsub_packet = UNSUB_PACKETS[param_str]
     
@@ -187,6 +219,8 @@ def unsubscribe(param_str: str, is_percent: bool, addr: str, fallback_packet: Pa
         with PC_SUBS_lock:
             if param_str in PC_SUBS:
                 del PC_SUBS[param_str]
+            if param_str in PC_SUBS_UNSUB_DELAY:
+                del PC_SUBS_UNSUB_DELAY[param_str]
         with pc_param_cache_lock:
             if param_str in pc_param_cache:
                 # invalidate cache entry (set t to None)
@@ -195,10 +229,19 @@ def unsubscribe(param_str: str, is_percent: bool, addr: str, fallback_packet: Pa
         with SUBS_lock:
             if param_str in SUBS:
                 del SUBS[param_str]
+            if param_str in SUBS_UNSUB_DELAY:
+                del SUBS_UNSUB_DELAY[param_str]
         with param_cache_lock:
             if param_str in param_cache:
                 # invalidate cache entry (set t to None)
                 param_cache[param_str] = (None, param_cache[param_str][1])
+
+def restart_all_connections():
+    if hiqnet_tcp_threads:
+        for t in hiqnet_tcp_threads.values():
+            t.restartFlag = True
+    if hiqnet_udp_thread:
+        hiqnet_udp_thread.restartFlag = True
 
 async def resp_broadcast(node: str):
     global param_cache, param_cache_lock, pc_param_cache, param_cache_lock, ws_server, WEBSOCKET_LIST
@@ -209,8 +252,8 @@ async def resp_broadcast(node: str):
         if msg["type"] == "SET":
             with param_cache_lock:
                 t = time.time()
-                # check if value has stayed the same in the cache
-                if msg["parameter"] in param_cache and param_cache[msg["parameter"]][1] == data:
+                # check if value has stayed the same in the cache (and not invalidated)
+                if msg["parameter"] in param_cache and param_cache[msg["parameter"]][1] == data and param_cache[msg["parameter"]][1]:
                     # if it has not been the minimum rebroadcast time, don't bother resending the data
                     if t - param_cache[msg["parameter"]][0] < param_rebroadcast_time:
                         continue
@@ -218,8 +261,8 @@ async def resp_broadcast(node: str):
         elif msg["type"] == "SET_PERCENT":
             with pc_param_cache_lock:
                 t = time.time()
-                # check if value has stayed the same in the cache
-                if msg["parameter"] in pc_param_cache and pc_param_cache[msg["parameter"]][1] == data:
+                # check if value has stayed the same in the cache (and not invalidated)
+                if msg["parameter"] in pc_param_cache and pc_param_cache[msg["parameter"]][1] == data and pc_param_cache[msg["parameter"]][1]:
                     # if it has not been the minimum rebroadcast time, don't bother resending the data
                     if t - pc_param_cache[msg["parameter"]][0] < param_rebroadcast_time:
                         continue
@@ -336,14 +379,18 @@ def ws_on_data_receive(client, server, message):
         if user_data.get("admin", False):
             print(f"Restart attempted by {user_data['username']}", flush=True)
             RUN_SERVER = False
+    elif message == "reconnect":
+        if user_data.get("admin", False):
+            print(f"Reconnect attempted by {user_data['username']}", flush=True)
+            restart_all_connections()
     elif not user_options.get("statusonly", False):
         try:
             data = json.loads(message)
             if data.get("type", "") == "UNSUBSCRIBE_ALL":
                 for param_str in user_subs[0]:
-                    unsubscribe(param_str, False, client["address"])
+                    client_unsubscribe(param_str, False, client["address"])
                 for param_str in user_subs[1]:
-                    unsubscribe(param_str, True, client["address"])
+                    client_unsubscribe(param_str, True, client["address"])
                 user_subs = ([], [])
                 with WS_DATA_LOCK:
                     WS_USER_DATA[client["address"]] = (user_data, user_options, user_subs)
@@ -365,7 +412,7 @@ def ws_on_data_receive(client, server, message):
                             WS_USER_DATA[client["address"]] = (user_data, user_options, user_subs)
                 elif p.message_type == MessageType.UNSUBSCRIBE or p.message_type == MessageType.UNSUBSCRIBE_PERCENT:
                     is_percent = p.message_type == MessageType.UNSUBSCRIBE_PERCENT
-                    unsubscribe(p.param_str(), is_percent, client["address"], fallback_packet=p)
+                    client_unsubscribe(p.param_str(), is_percent, client["address"], fallback_packet=p)
 
                     if p.param_str() in user_subs[1 if is_percent else 0]:
                         user_subs[1 if is_percent else 0].remove(p.param_str())
@@ -388,9 +435,9 @@ def ws_on_connection_close(client, server):
             _, _, user_subs = WS_USER_DATA.pop(addr)
             if user_subs is not None:
                 for param_str in user_subs[0]:
-                    unsubscribe(param_str, False, addr)
+                    client_unsubscribe(param_str, False, addr)
                 for param_str in user_subs[1]:
-                    unsubscribe(param_str, True, addr)
+                    client_unsubscribe(param_str, True, addr)
 
 health_check_queue = None
 
@@ -420,6 +467,30 @@ async def health_check():
 
         update_health(client_thread_status)
 
+async def unsubscribe_delay_task():
+    global RUN_SERVER
+    if config["unsubscribe_delay_s"] == 0:
+        return
+    while RUN_SERVER:
+        t = time.time()
+        pc_to_unsubscribe = []
+        to_unsubscribe = []
+        with PC_SUBS_lock:
+            for param_str, st in PC_SUBS_UNSUB_DELAY.items():
+                if t - st >= config["unsubscribe_delay_s"]:
+                    pc_to_unsubscribe.append(param_str)
+        with SUBS_lock:
+            for param_str, st in SUBS_UNSUB_DELAY.items():
+                if t - st >= config["unsubscribe_delay_s"]:
+                    to_unsubscribe.append(param_str)
+        for param_str in pc_to_unsubscribe:
+            unsubscribe(param_str, is_percent=True)
+            await asyncio.sleep(0.02) # some delay here to avoid DOS'ing the server
+        for param_str in to_unsubscribe:
+            unsubscribe(param_str, is_percent=False)
+            await asyncio.sleep(0.02) # some delay here to avoid DOS'ing the server
+        await asyncio.sleep(1)
+
 def get_node_alias(n):
     global config
     # Return the alias or just the node id
@@ -440,7 +511,7 @@ def test_udp_receive(bind_ip, hiqnet_port, dest_ip):
     s2.sendto(test_str, (dest_ip, hiqnet_port))
 
     try:
-        for i in range(10): # allow 10 timeouts before failing
+        for _ in range(10): # allow 10 timeouts before failing
             try:
                 while True: # keep receiving until timeout occurs, we may be getting flooded with packets
                     data = s.recv(1024)
@@ -507,24 +578,21 @@ async def main():
     ws_server.set_fn_message_received(ws_on_data_receive)
     ws_server.run_forever(threaded=True)
     health_task = asyncio.create_task(health_check())
+    unsubscribe_task = asyncio.create_task(unsubscribe_delay_task())
     while RUN_SERVER:
         await asyncio.sleep(2)
     health_task.cancel()
+    unsubscribe_task.cancel()
     try:
         await health_task
     except asyncio.CancelledError:
         pass
-
-if __name__ == "__main__":
-    update_health({}) # set healthy to false when starting
-    config = load_config("config/config.json")
-    print("HiQnet Websocket Proxy", VERSION, flush=True)
     try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
-    print("Exiting...")
+        await unsubscribe_task
+    except asyncio.CancelledError:
+        pass  
 
+def safe_shutdown_thread():
     if hiqnet_tcp_threads:
         for t in hiqnet_tcp_threads.values():
             t.exitFlag = True
@@ -543,3 +611,36 @@ if __name__ == "__main__":
     if resp_queues:
         for q in resp_queues.values():
             q.close()
+
+if __name__ == "__main__":
+    update_health({}) # set healthy to false when starting
+    config = load_config("config/config.json")
+    print("HiQnet Websocket Proxy", VERSION, flush=True)
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
+    print("Exiting...")
+
+    safe_shutdown_thread = threading.Thread(target=safe_shutdown_thread)
+    safe_shutdown_thread.daemon = True
+    safe_shutdown_thread.start()
+
+    safely_shutdown = False
+    try:
+        for _ in range(FAILSAFE_SHUTDOWN_TIME):
+            if not safe_shutdown_thread.is_alive():
+                safely_shutdown = True
+                break
+            time.sleep(1)
+    except Exception as ex:
+        print("Safe shutdown error:", ex)
+        safely_shutdown = False
+
+    if not safely_shutdown:
+        print("Safe shutdown failed, forcefully exiting")
+        exit(1)
+    else:
+        print("Safe shutdown successful")
+        exit(0)
+

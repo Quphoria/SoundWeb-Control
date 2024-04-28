@@ -53,6 +53,10 @@ class BackendStatus extends React.Component {
     if (this.state.connected) this.websocket.sendMessage(enabled ? "enable_debug" : "disable_debug");
   }
 
+  reconnect() {
+    if (this.state.connected) this.websocket.sendMessage("reconnect");
+  }
+
   setupWebsocket() {
     this.websocket = new WebSocket({
       url: this.props.websocket,
@@ -149,7 +153,8 @@ class BackendStatus extends React.Component {
           setState={this.props.setBackendDebugModalState}
           connected={this.state.connected}
           debug={this.state.debug}
-          setDebug={this.setDebug.bind(this)} />
+          setDebug={this.setDebug.bind(this)}
+          reconnectCallback={this.reconnect.bind(this)} />
       </div>
     );
   }
