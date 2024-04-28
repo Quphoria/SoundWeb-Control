@@ -252,8 +252,8 @@ async def resp_broadcast(node: str):
         if msg["type"] == "SET":
             with param_cache_lock:
                 t = time.time()
-                # check if value has stayed the same in the cache (and not invalidated)
-                if msg["parameter"] in param_cache and param_cache[msg["parameter"]][1] == data and param_cache[msg["parameter"]][1]:
+                # check if value has stayed the same in the cache (only check if cache line is valid)
+                if msg["parameter"] in param_cache and param_cache[msg["parameter"]][1] == data and param_cache[msg["parameter"]][0] is not None:
                     # if it has not been the minimum rebroadcast time, don't bother resending the data
                     if t - param_cache[msg["parameter"]][0] < param_rebroadcast_time:
                         continue
@@ -261,8 +261,8 @@ async def resp_broadcast(node: str):
         elif msg["type"] == "SET_PERCENT":
             with pc_param_cache_lock:
                 t = time.time()
-                # check if value has stayed the same in the cache (and not invalidated)
-                if msg["parameter"] in pc_param_cache and pc_param_cache[msg["parameter"]][1] == data and pc_param_cache[msg["parameter"]][1]:
+                # check if value has stayed the same in the cache (only check if cache line is valid)
+                if msg["parameter"] in pc_param_cache and pc_param_cache[msg["parameter"]][1] == data and pc_param_cache[msg["parameter"]][0] is not None:
                     # if it has not been the minimum rebroadcast time, don't bother resending the data
                     if t - pc_param_cache[msg["parameter"]][0] < param_rebroadcast_time:
                         continue
