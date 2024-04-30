@@ -16,6 +16,8 @@ def default_config() -> Dict[str, Any]:
         "subscription_debug": False,
         "hiqnet_debug": False,
         "unsubscribe_delay_s": 300,
+        "support_name": "Example",
+        "support_email": "example@example.com",
     }
 
 def check_list_type(l: list, v_type) -> bool:
@@ -65,6 +67,8 @@ config_tests = {
     "subscription_debug": lambda x: isinstance(x, bool),
     "hiqnet_debug":  lambda x: isinstance(x, bool),
     "unsubscribe_delay_s": lambda x: check_range(x, 0, 86400),
+    "support_name": lambda x: isinstance(x, str),
+    "support_email": lambda x: isinstance(x, str),
 }
 
 def load_config(config_filename: str = "config.json", disable_save = False) -> dict:

@@ -115,6 +115,11 @@ class HiQnetFlags:
             acknowledgement = (flags & 0x0100) != 0,
             req_acknowledgement = (flags & 0x0100) != 0
         )
+    
+    @staticmethod
+    def session_supported():
+        # see 4.3.7 Hello Query
+        return 0x01FF
 
 @dataclass
 class HiQnetHeader:
@@ -240,6 +245,12 @@ def decode_message(data) -> List[HiQnetMessage]:
         try:
             if header.message_id == MessageID.DiscoInfo:
                 msgs.append(DiscoInfo.decode(message, header))
+            elif header.message_id == MessageID.Hello and not header.flags.information:
+                msgs.append(HelloQuery.decode(message, header))
+            elif header.message_id == MessageID.Hello:
+                msgs.append(HelloInfo.decode(message, header))
+            elif header.message_id == MessageID.Goodbye:
+                msgs.append(Goodbye.decode(message, header))
             elif header.message_id == MessageID.MultiObjectParamSet:
                 msgs.append(MultiObjectParamSet.decode(message, header))
             elif header.message_id == MessageID.ParamSetPercent:
@@ -460,6 +471,76 @@ class DiscoInfo(HiQnetMessage):
         info = DiscoveryInformation.decode(data)
         is_query = not header.flags.information
         return cls(info, is_query, header)
+
+class HelloQuery(HiQnetMessage):
+    def __init__(self, session_number: int, flag_mask: int = HiQnetFlags.session_supported(), *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.header.message_id = MessageID.Hello
+        self.session_number = session_number
+        self.flag_mask = flag_mask
+    
+    def get_session_number(self):
+        return self.session_number
+
+    def get_payload(self):
+        data = self.session_number.to_bytes(UWORD, "big")
+        data += self.flag_mask.to_bytes(UWORD, "big")
+        return data
+
+    def __str__(self):
+        return "HelloQuery " + str(self.session_number) + " : " + hex(self.flag_mask) 
+
+    @classmethod
+    def decode(cls, data: bytes, header: HiQnetHeader):
+        session_number = int.from_bytes(data[:2], "big")
+        flag_mask = int.from_bytes(data[2:4], "big")
+        return cls(session_number, flag_mask, header)
+    
+class HelloInfo(HiQnetMessage):
+    def __init__(self, session_number: int, flag_mask: int = HiQnetFlags.session_supported(), *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.header.message_id = MessageID.Hello
+        self.header.flags.information = True
+        self.session_number = session_number
+        self.flag_mask = flag_mask
+    
+    def get_session_number(self):
+        return self.session_number
+
+    def get_payload(self):
+        data = self.session_number.to_bytes(UWORD, "big")
+        data += self.flag_mask.to_bytes(UWORD, "big")
+        return data
+
+    def __str__(self):
+        return "HelloInfo " + str(self.session_number) + " : " + hex(self.flag_mask) 
+
+    @classmethod
+    def decode(cls, data: bytes, header: HiQnetHeader):
+        session_number = int.from_bytes(data[:2], "big")
+        flag_mask = int.from_bytes(data[2:4], "big")
+        return cls(session_number, flag_mask, header)
+
+class Goodbye(HiQnetMessage):
+    def __init__(self, device_address: int = MY_ADDRESS.device, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.header.message_id = MessageID.Goodbye
+        self.device_address = device_address
+    
+    def get_device_address(self):
+        return self.device_address
+
+    def get_payload(self):
+        data = self.device_address.to_bytes(UWORD, "big")
+        return data
+
+    def __str__(self):
+        return "Goodbye " + str(self.device_address)
+
+    @classmethod
+    def decode(cls, data: bytes, header: HiQnetHeader):
+        device_address = int.from_bytes(data[:2], "big")
+        return cls(device_address, header)
 
 class MultiObjectParamSet(HiQnetMessage):
     # dictionary of objects with list of parameters

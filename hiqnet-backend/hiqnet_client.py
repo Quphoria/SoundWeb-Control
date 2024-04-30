@@ -1,4 +1,4 @@
-import asyncore, asyncio, threading, time, functools, socket, uuid
+import asyncore, asyncio, threading, time, functools, socket, uuid, random
 from contextlib import suppress
 from janus import Queue, SyncQueue, SyncQueueEmpty
 import janus
@@ -7,7 +7,8 @@ from hiqnet_proto import *
 
 RX_MSG_SIZE = 4096
 UDP_TEST_INTERVAL = 5 # 5 seconds
-UDP_MAX_FAIL_THRESHOLD = 12 # 60 seconds (5*12)
+UDP_MAX_FAIL_THRESHOLD = 3 # 15 seconds (5*3)
+UDP_DISCOVERY_BROADCAST_INTERVAL = 5 # 5 seconds
 
 SEQ_NUM_MIN_DIST = 0x1000
 SEQ_NUM_TIMEOUT = 10 # 10 seconds
@@ -75,6 +76,10 @@ class HiQnetClientProtocol(asyncio.Protocol):
             disco_info_msg = DiscoInfo(self.disco_info, is_query=True, header=HiQnetHeader(self.node_addr))
             transport.write(disco_info_msg.encode(self.next_seq()))
 
+    def send_goodbye(self, transport):
+        goodbye_msg = Goodbye(header=HiQnetHeader(self.node_addr))
+        transport.write(goodbye_msg.encode(self.next_seq()))
+
     def connection_made(self, transport):
         print(self.name, "Connected", flush=True)
         self.status_ok = False
@@ -84,9 +89,21 @@ class HiQnetClientProtocol(asyncio.Protocol):
 
         start_keepalives = StartKeepAlive(HiQnetHeader(self.node_addr))
         transport.write(start_keepalives.encode(self.next_seq()))
+
         # start timeout
         self.last_time = time.time()
 
+        self.resubscribe(transport)
+        
+        # empty message queue to clear delayed commands (otherwise could cause unexpected changes on connection)
+        while (not self.msg_queue.closed) and (not self.msg_queue.empty()):
+            self.msg_queue.get(timeout=1)
+        self.transport = transport
+        # clear read buffer
+        self.read_buffer = b""
+        self._ready.set()
+
+    def resubscribe(self, transport):
         if self.subscribed_params:
             for p in self.subscribed_params:
                 # unsubscribe first to get value sent to us
@@ -108,13 +125,6 @@ class HiQnetClientProtocol(asyncio.Protocol):
                     transport.write(p.to_msg().encode(self.next_seq()))
                 except UnsupportedMessage as ex:
                     print(self.name, "Error Sending Subscription:", ex)
-        # empty message queue to clear delayed commands (otherwise could cause unexpected changes on connection)
-        while (not self.msg_queue.closed) and (not self.msg_queue.empty()):
-            self.msg_queue.get(timeout=1)
-        self.transport = transport
-        # clear read buffer
-        self.read_buffer = b""
-        self._ready.set()
         
     def data_received(self, data):
         try:
@@ -134,6 +144,23 @@ class HiQnetClientProtocol(asyncio.Protocol):
                     self.health_queue.put({"id": self.h_id, "status": True})
                     self.status_ok = True
                 self.keepalive_interval_ms = min(self.keepalive_interval_ms, msg.info.keep_alive_ms - 1000)
+                continue
+
+            if type(msg) == HelloInfo:
+                print(self.node_id, ": ", str(msg))
+                continue
+            
+            if type(msg) == HelloQuery:
+                print(self.node_id, ": ", str(msg))
+                continue
+
+            if type(msg) == Goodbye:
+                print(self.node_id, ": ", str(msg))
+                # we got a goodbye
+                if msg.device_address == self.node_id:
+                    self.health_queue.put({"id": self.h_id, "status": False})
+                    self.end_connection()
+                    return
                 continue
 
             if type(msg) in (MultiObjectParamSet, MultiParamSet, ParamSetPercent):
@@ -189,6 +216,10 @@ class HiQnetThread(threading.Thread):
                 if time.time() - protocol.last_time > (2 * self.disco_info.keep_alive_ms / 1000):
                     self.fast_reconnect = True
                     break
+        else:
+            # we are reconnecting or exiting
+            # be good and send a Goodbye message
+            protocol.send_goodbye(transport)
         transport.close()
         # cancel send task
         protocol.send_task.cancel()
@@ -224,7 +255,7 @@ class HiQnetThread(threading.Thread):
         print(self.name, "exited", flush=True)
 
 class HiQnetUDPListenerThread(threading.Thread):
-    def __init__(self, name: str, h_id: str, bind_ip: str, server_ip: str, hiqnet_port: int, resp_queue: Queue, health_check_queue: Queue):
+    def __init__(self, name: str, h_id: str, bind_ip: str, server_ip: str, hiqnet_port: int, resp_queue: Queue, health_check_queue: Queue, disco_info: DiscoveryInformation, broadcast_address: str):
         super().__init__(daemon=True)
         self.name = name
         self.h_id = h_id
@@ -234,6 +265,8 @@ class HiQnetUDPListenerThread(threading.Thread):
         self.resp_queue = resp_queue
         self.health_queue = health_check_queue
         self.health_queue.sync_q.put({"id": self.h_id, "status": False})
+        self.disco_info = disco_info
+        self.broadcast_address = broadcast_address
         self.exitFlag = False
         self.restartFlag = False
 
@@ -247,6 +280,9 @@ class HiQnetUDPListenerThread(threading.Thread):
             udp_test_uuid = None
             failed_tests = 0
             last_test = 0
+            last_disco = 0
+            seq_num = 0
+            disco_info_msg = DiscoInfo(self.disco_info, is_query=False, header=HiQnetHeader(HiQnetAddress.broadcast()))
 
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -280,6 +316,12 @@ class HiQnetUDPListenerThread(threading.Thread):
                                 raise Exception(f"Failed {UDP_MAX_FAIL_THRESHOLD} Consecutive UDP Test Packets")
                         udp_test_uuid = str(uuid.uuid4()).encode()
                         test_socket.sendto(udp_test_uuid, (self.server_ip, self.hiqnet_port))
+                    
+                    # send discovery info broadcast
+                    if time.time() - last_disco > UDP_DISCOVERY_BROADCAST_INTERVAL:
+                        last_disco = time.time()
+                        seq_num += 1
+                        test_socket.sendto(disco_info_msg.encode(seq_num), (self.broadcast_address, self.hiqnet_port))
 
                     # receive data
                     try:

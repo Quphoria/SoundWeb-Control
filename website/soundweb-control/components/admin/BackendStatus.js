@@ -25,6 +25,9 @@ class BackendStatus extends React.Component {
       case "debug":
         this.setState({debug: data})
         break;
+      case "support":
+        this.props.setSupportInformation && this.props.setSupportInformation(data);
+        break;
     }
   }
 
@@ -47,6 +50,7 @@ class BackendStatus extends React.Component {
     this.websocket.sendMessage("status"); // Get status
     this.websocket.sendMessage("version"); // Get version
     this.websocket.sendMessage("debug"); // Get debug
+    this.websocket.sendMessage("support"); // Get support
   }
 
   setDebug(enabled) {
@@ -54,7 +58,10 @@ class BackendStatus extends React.Component {
   }
 
   reconnect() {
-    if (this.state.connected) this.websocket.sendMessage("reconnect");
+    if (this.state.connected) {
+      this.websocket.sendMessage("reconnect");
+      this.props.setBackendDebugModalState && this.props.setBackendDebugModalState({show: false});
+    }
   }
 
   setupWebsocket() {

@@ -1,4 +1,4 @@
-import asyncio, os, sys, threading
+import asyncio, os, sys, threading, ipaddress
 from janus import Queue
 import json, hmac, hashlib, time
 from config import load_config
@@ -268,7 +268,7 @@ async def resp_broadcast(node: str):
                         continue
                 pc_param_cache[msg["parameter"]] = (t, data)
         if config["hiqnet_debug"]:
-            print("HiQnet RX:", msg, flush=True)
+            print(f"HiQnet RX [{node}]:", msg, flush=True)
         SEND_LIST = filter(partial(should_send, msg=msg), WEBSOCKET_LIST)
         if SEND_LIST:
             ws_server.send_message_to_list(SEND_LIST, data)
@@ -383,6 +383,15 @@ def ws_on_data_receive(client, server, message):
         if user_data.get("admin", False):
             print(f"Reconnect attempted by {user_data['username']}", flush=True)
             restart_all_connections()
+    elif message == "support":
+        if user_data.get("admin", False):
+            server.send_message(client, json.dumps({
+                "type": "support",
+                "data": {
+                    "name": config["support_name"],
+                    "email": config["support_email"],
+                }
+            }))
     elif not user_options.get("statusonly", False):
         try:
             data = json.loads(message)
@@ -557,10 +566,14 @@ async def main():
         config["server_gateway"])
     disco_info = DiscoveryInformation(network_info)
 
+    # use ipaddress module to calculate broadcast address
+    net = ipaddress.IPv4Network(config["server_ip_address"] + '/' + config["server_subnet_mask"], False)
+    broadcast_address = str(net.broadcast_address)
+
     hiqnet_tcp_threads = {
         key: HiQnetThread(f"HiQnet {key} TCP Thread", get_node_alias(key), int(key, base=16), ip, HIQNET_PORT,msg_queues[key], resp_queues[key], subscribed_params[key], health_check_queue, disco_info)
         for key, ip in config["nodes"].items()}
-    hiqnet_udp_thread = HiQnetUDPListenerThread("HiQnet UDP Thread", UDP_NODE_ID, "0.0.0.0", config["server_ip_address"], HIQNET_PORT, resp_queues[UDP_NODE_ID], health_check_queue)
+    hiqnet_udp_thread = HiQnetUDPListenerThread("HiQnet UDP Thread", UDP_NODE_ID, "0.0.0.0", config["server_ip_address"], HIQNET_PORT, resp_queues[UDP_NODE_ID], health_check_queue, disco_info, broadcast_address)
     
     # start udp thread first to receive initial messages
     hiqnet_udp_thread.start()

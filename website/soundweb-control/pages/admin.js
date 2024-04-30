@@ -12,6 +12,7 @@ import BackendStatus from "../components/admin/BackendStatus"
 import UploadPanelDialog from "../components/admin/UploadPanelDialog"
 import SSOSettingsDialog from "../components/admin/SSOSettingsDialog"
 import { home_url, login_url } from "../lib/siteUrls"
+import SupportDialog from "../components/admin/SupportDialog.js"
 
 export async function getStaticProps () {
   // `getStaticProps` is executed on the server side.
@@ -30,6 +31,8 @@ const Admin = props => {
     redirectTo: login_url,
     redirectQuery: true
   });
+  const [supportModalState, setSupportModalState] = useState({show: false});
+  const [supportInformation, setSupportInformation] = useState({name: "", email: ""});
   const [ssoSettingsModalState, setSSOSettingsModalState] = useState({show: false});
   const [uploadPanelModalState, setUploadPanelModalState] = useState({show: false});
   const [backendDebugModalState, setBackendDebugModalState] = useState({show: false});
@@ -66,6 +69,7 @@ const Admin = props => {
       </Head>
       <SSOSettingsDialog state={ssoSettingsModalState} setState={setSSOSettingsModalState} />
       <UploadPanelDialog state={uploadPanelModalState} setState={setUploadPanelModalState} />
+      <SupportDialog state={supportModalState} setState={setSupportModalState} info={supportInformation} />
       <Padding>
         <h2>Admin</h2>
         <h4>Hello <Rainbow>{user.username}#{user.id}</Rainbow></h4>
@@ -73,7 +77,8 @@ const Admin = props => {
           websocket={websocket_uri}
           setRestartCallback={setBackendStatusRestartCallback}
           backendDebugModalState={backendDebugModalState}
-          setBackendDebugModalState={setBackendDebugModalState} />
+          setBackendDebugModalState={setBackendDebugModalState}
+          setSupportInformation={setSupportInformation} />
         <UserManager user={user} />
       </Padding>
       <div style={{
@@ -83,6 +88,8 @@ const Admin = props => {
           fontSize: "0.8rem",
           cursor: "pointer"
         }}>
+        <a onClick={() => setSupportModalState({show: true})}
+          style={{textDecoration: "underline", color: "var(--bs-info)"}}>Support</a> &nbsp;&nbsp;
         <a onClick={() => setSSOSettingsModalState({show: true})}
           style={{textDecoration: "underline", color: "var(--bs-info)"}}>SSO Settings</a> &nbsp;&nbsp;
         <a onClick={backendStatusRestartCallback.callback}
