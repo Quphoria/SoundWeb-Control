@@ -440,7 +440,7 @@ class HiQnetUDPListenerThread(threading.Thread):
                 self.hiqnet_port, self.resp_queue, self.health_queue, self.stats_queue,
                 self.disco_info, self.broadcast_address, loop),
             (self.bind_ip, self.hiqnet_port),
-            reuse_port=True, allow_broadcast=True)
+            allow_broadcast=True)
         n = 0
         while not self.exitFlag and not self.restartFlag:
             await asyncio.sleep(1)
