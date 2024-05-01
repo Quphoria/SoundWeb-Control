@@ -69,7 +69,7 @@ class HiQnetClientProtocol(asyncio.Protocol):
                 try:
                     self.transport.write(p.to_msg().encode(self.next_seq()))
                 except UnsupportedMessage as ex:
-                    print(self.name, "Error Sending Message:", ex)
+                    print(self.name, "Error Sending Message:", ex, flush=True)
 
     def send_keepalive(self, transport):
         if self.last_time:
@@ -119,12 +119,12 @@ class HiQnetClientProtocol(asyncio.Protocol):
                     try:
                         transport.write(p2.to_msg().encode(self.next_seq()))
                     except UnsupportedMessage as ex:
-                        print(self.name, "Error Sending Unsubscription:", ex)
+                        print(self.name, "Error Sending Unsubscription:", ex, flush=True)
 
                 try:
                     transport.write(p.to_msg().encode(self.next_seq()))
                 except UnsupportedMessage as ex:
-                    print(self.name, "Error Sending Subscription:", ex)
+                    print(self.name, "Error Sending Subscription:", ex, flush=True)
         
     def data_received(self, data):
         try:
@@ -133,7 +133,7 @@ class HiQnetClientProtocol(asyncio.Protocol):
             print("Decode Error:", ex)
         for msg in msgs:
             if type(msg) == DecodeFailed:
-                print(self.name, "Decode Error:", ex)
+                print(self.name, "Decode Error:", msg, flush=True)
                 continue
             if self.last_time > 0: # Only reset timer if its started and we get correctly formed packets
                 self.last_time = time.time()
@@ -147,15 +147,15 @@ class HiQnetClientProtocol(asyncio.Protocol):
                 continue
 
             if type(msg) == HelloInfo:
-                print(self.node_id, ": ", str(msg))
+                print(self.node_id, ": ", str(msg), flush=True)
                 continue
             
             if type(msg) == HelloQuery:
-                print(self.node_id, ": ", str(msg))
+                print(self.node_id, ": ", str(msg), flush=True)
                 continue
 
             if type(msg) == Goodbye:
-                print(self.node_id, ": ", str(msg))
+                print(self.node_id, ": ", str(msg), flush=True)
                 # we got a goodbye
                 if msg.device_address == self.node_id:
                     self.health_queue.put({"id": self.h_id, "status": False})
@@ -166,7 +166,7 @@ class HiQnetClientProtocol(asyncio.Protocol):
             if type(msg) in (MultiObjectParamSet, MultiParamSet, ParamSetPercent):
                 for p in Packet.from_msg(msg):
                     if type(p) == UnsupportedMessage or type(p) == DecodeFailed:
-                        print(self.name, "Error decoding packet:", p)
+                        print(self.name, "Error decoding packet:", p, flush=True)
                         continue
                     if self.resp_queue.closed:
                         self.end_connection()
@@ -371,7 +371,7 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         
         for msg in msgs:
             if type(msg) == DecodeFailed:
-                print(self.name, "Decode Error:", ex, flush=True)
+                print(self.name, "Decode Error:", msg, flush=True)
                 continue
 
             if type(msg) == IncorrectDestination:
