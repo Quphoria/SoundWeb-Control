@@ -278,6 +278,8 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         self.packets = 0
         self.good_packets = 0
         self.packet_decode_time = 0
+        self.test_st = 0
+        self.test_rtt = None
 
     def end_connection(self):
         self.discovery_task.cancel()
@@ -303,6 +305,7 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
                     failed_tests = 0
                 else:
                     print("UDP Test Packet Failed", flush=True)
+                    self.test_rtt = None
                     if failed_tests == 0:
                         await self.health_queue.async_q.put({"id": self.h_id, "status": False}) # update status
                     failed_tests += 1
@@ -311,6 +314,7 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
                         raise Exception(f"Failed {UDP_MAX_FAIL_THRESHOLD} Consecutive UDP Test Packets")
                 self.udp_test_uuid = str(uuid.uuid4()).encode()
                 test_socket.sendto(self.udp_test_uuid, (self.server_ip, self.hiqnet_port))
+                self.test_st = time.time()
                 await asyncio.sleep(UDP_TEST_INTERVAL)
         finally:
             try:
@@ -352,23 +356,16 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         # clear read buffer
         self.read_buffer = b""
         self._ready.set()
-        
-    def datagram_received(self, data, _):
-        # check for test packet
 
-        if self.udp_test_uuid and data == self.udp_test_uuid:
-            self.udp_test_uuid = None
-            return
-        
-        self.packets += 1
+    def decode_handler(self, data):
         st = time.time()
 
         try:
             msgs = decode_message(data)
         except DecodeFailed as ex:
             print(self.name, "Decode Error:", ex, flush=True)
-            self.packet_decode_time += time.time() - st
-            return
+            dt = time.time() - st
+            return False, dt  # decode failed
         
         self.good_packets += 1
         
@@ -417,7 +414,26 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
                     if self.resp_queue.sync_q.full():
                         self.resp_queue.sync_q.get() # remove oldest if queue full
                     self.resp_queue.sync_q.put(p.to_json())
-        self.packet_analysis_time += time.time() - st
+        
+        dt = time.time() - st
+        return True, dt # decode successful
+        
+    def datagram_received(self, data, _):
+        # check for test packet
+
+        if self.udp_test_uuid and data == self.udp_test_uuid:
+            self.test_rtt = time.time() - self.test_st
+            self.udp_test_uuid = None
+            return
+        
+        self.packets += 1
+        
+        good, dt = self.decode_handler(data)
+
+        if good:
+            self.good_packets += 1
+        
+        self.packet_decode_time += dt
 
     def connection_lost(self, exc):
         print(self.name, "Connection Error:", exc, flush=True)
@@ -436,7 +452,7 @@ class HiQnetUDPListenerThread(threading.Thread):
         self.health_queue = health_check_queue
         self.health_queue.sync_q.put({"id": self.h_id, "status": False})
         self.stats_queue = stats_queue
-        self.stats_queue.sync_q.put({"id": self.h_id, "stats": {"good_pps": None, "total_pps": None, "decode_time": None}})
+        self.stats_queue.sync_q.put({"id": self.h_id, "stats": {"good_pps": None, "total_pps": None, "decode_time": None, "test_rtt": None}})
         self.disco_info = disco_info
         self.broadcast_address = broadcast_address
         self.exitFlag = False
@@ -477,7 +493,7 @@ class HiQnetUDPListenerThread(threading.Thread):
             except Exception as ex:
                 print(self.name, "Error:", ex, flush=True)
             self.health_queue.sync_q.put({"id": self.h_id, "status": False})
-            self.stats_queue.sync_q.put({"id": self.h_id, "stats": {"good_pps": None, "total_pps": None, "decode_time": None}})
+            self.stats_queue.sync_q.put({"id": self.h_id, "stats": {"good_pps": None, "total_pps": None, "decode_time": None, "test_rtt": None}})
             if not self.exitFlag:
                 print(self.name, "HiQnet UDP listener thread stopped, Restarting in 5 seconds", flush=True)
                 for _ in range(5):
