@@ -277,6 +277,7 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         self.dead = False
         self.packets = 0
         self.good_packets = 0
+        self.packet_decode_time = 0
 
     def end_connection(self):
         self.discovery_task.cancel()
@@ -333,11 +334,14 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         """Periodically update stats"""
         await self._ready.wait()
         while self.loop.is_running():
-            total_pps = self.packets / PACKETS_PER_SECOND_INTERVAL
-            good_pps = self.good_packets / PACKETS_PER_SECOND_INTERVAL
-            await self.stats_queue.async_q.put({"id": self.h_id, "stats": {"good_pps": good_pps, "total_pps": total_pps}})
+            await self.stats_queue.async_q.put({"id": self.h_id, "stats": {
+                "good_pps": self.good_packets / PACKETS_PER_SECOND_INTERVAL,
+                "total_pps": self.packets / PACKETS_PER_SECOND_INTERVAL,
+                "decode_time": self.packet_decode_time / self.packets,
+            }})
             self.packets = 0
             self.good_packets = 0
+            self.packet_decode_time = 0
             await asyncio.sleep(PACKETS_PER_SECOND_INTERVAL)
 
     def connection_made(self, transport):
@@ -351,16 +355,19 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         
     def datagram_received(self, data, _):
         # check for test packet
-        self.packets += 1
 
         if self.udp_test_uuid and data == self.udp_test_uuid:
             self.udp_test_uuid = None
             return
+        
+        self.packets += 1
+        st = time.time()
 
         try:
             msgs = decode_message(data)
         except DecodeFailed as ex:
             print(self.name, "Decode Error:", ex, flush=True)
+            self.packet_decode_time += time.time() - st
             return
         
         self.good_packets += 1
@@ -368,7 +375,7 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         for msg in msgs:
             if type(msg) == DecodeFailed:
                 print(self.name, "Decode Error:", ex, flush=True)
-                return
+                continue
 
             if type(msg) == IncorrectDestination:
                 print(self.name, "Incorrect Destination:", msg, flush=True)
@@ -410,6 +417,7 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
                     if self.resp_queue.sync_q.full():
                         self.resp_queue.sync_q.get() # remove oldest if queue full
                     self.resp_queue.sync_q.put(p.to_json())
+        self.packet_analysis_time += time.time() - st
 
     def connection_lost(self, exc):
         print(self.name, "Connection Error:", exc, flush=True)
@@ -428,7 +436,7 @@ class HiQnetUDPListenerThread(threading.Thread):
         self.health_queue = health_check_queue
         self.health_queue.sync_q.put({"id": self.h_id, "status": False})
         self.stats_queue = stats_queue
-        self.stats_queue.sync_q.put({"id": self.h_id, "stats": {"good_pps": None, "total_pps": None}})
+        self.stats_queue.sync_q.put({"id": self.h_id, "stats": {"good_pps": None, "total_pps": None, "decode_time": None}})
         self.disco_info = disco_info
         self.broadcast_address = broadcast_address
         self.exitFlag = False
@@ -469,7 +477,7 @@ class HiQnetUDPListenerThread(threading.Thread):
             except Exception as ex:
                 print(self.name, "Error:", ex, flush=True)
             self.health_queue.sync_q.put({"id": self.h_id, "status": False})
-            self.stats_queue.sync_q.put({"id": self.h_id, "stats": {"good_pps": None, "total_pps": None}})
+            self.stats_queue.sync_q.put({"id": self.h_id, "stats": {"good_pps": None, "total_pps": None, "decode_time": None}})
             if not self.exitFlag:
                 print(self.name, "HiQnet UDP listener thread stopped, Restarting in 5 seconds", flush=True)
                 for _ in range(5):
