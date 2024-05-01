@@ -10,12 +10,21 @@ import logging
 from socket import error as SocketError
 import errno
 import threading
+import zlib
+import time
 from socketserver import ThreadingMixIn, TCPServer, StreamRequestHandler
 
 from websocket_server.thread import WebsocketServerThread
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
+
+SUPPORT_PERMESSAGE_DEFLATE = True
+MAX_WBITS = 12 # for zlib compression
+MAX_DECOMPRESS_LENGTH = 0x200 # to protect against zip bombs etc
+EMPTY_COMPRESSED_BLOCK = b"\x00\x00\xff\xff"
+
+PING_INTERVAL = 15
 
 '''
 +-+-+-+-+-------+-+-------------+-------------------------------+
@@ -34,6 +43,7 @@ logging.basicConfig()
 '''
 
 FIN    = 0x80
+RSV1   = 0x40
 OPCODE = 0x0f
 MASKED = 0x80
 PAYLOAD_LEN = 0x7f
@@ -49,6 +59,16 @@ OPCODE_PONG         = 0xA
 
 CLOSE_STATUS_NORMAL = 1000
 DEFAULT_CLOSE_REASON = bytes('', encoding='utf-8')
+
+# level 1 for best speed
+def compress(data):
+    assert SUPPORT_PERMESSAGE_DEFLATE
+    compressor = zlib.compressobj(level=5, wbits=-MAX_WBITS)
+    cdata = compressor.compress(data)
+    cdata += compressor.flush(zlib.Z_SYNC_FLUSH)
+    if cdata.endswith(EMPTY_COMPRESSED_BLOCK):
+        return cdata[:-4]
+    return cdata
 
 
 class API():
@@ -200,10 +220,11 @@ class WebsocketServer(ThreadingMixIn, TCPServer, API):
             self._unicast(client, msg)
 
     def broadcast_list(self, clients, msg):
-        data = self.prepare_send_text(msg)
+        data, cdata = self.prepare_send_text(msg)
         if data:
             for client in clients:
-                client['handler'].send_raw(data)
+                client['handler'].send_raw(cdata if client['handler'].permessage_deflate else data)
+                # client['handler'].send_raw(data)
 
     def handler_to_client(self, handler):
         for client in self.clients:
@@ -303,8 +324,36 @@ class WebsocketServer(ThreadingMixIn, TCPServer, API):
         else:
             raise Exception("Message is too big. Consider breaking it into chunks.")
             return
+        
+        cdata = None
+        if SUPPORT_PERMESSAGE_DEFLATE:
+            cheader  = bytearray()
+            cpayload = compress(payload)
+            cpayload_length = len(cpayload)
+            # Normal payload
+            if cpayload_length <= 125:
+                cheader.append(FIN | RSV1 | opcode)
+                cheader.append(cpayload_length)
 
-        return header + payload
+            # Extended payload
+            elif cpayload_length >= 126 and cpayload_length <= 65535:
+                cheader.append(FIN | RSV1 | opcode)
+                cheader.append(PAYLOAD_LEN_EXT16)
+                cheader.extend(struct.pack(">H", cpayload_length))
+
+            # Huge extended payload
+            elif cpayload_length < 18446744073709551616:
+                cheader.append(FIN | RSV1 | opcode)
+                cheader.append(PAYLOAD_LEN_EXT64)
+                cheader.extend(struct.pack(">Q", cpayload_length))
+
+            else:
+                raise Exception("Message is too big. Consider breaking it into chunks.")
+                return
+
+            cdata = cheader + cpayload
+
+        return header + payload, cdata
 
 
 class WebSocketHandler(StreamRequestHandler):
@@ -325,7 +374,22 @@ class WebSocketHandler(StreamRequestHandler):
         self.keep_alive = True
         self.handshake_done = False
         self.valid_client = False
+        self.last_ping = 0
+        self.permessage_deflate = False
+        self.remote_no_context_takeover = False
+        self.remote_max_window_bits = 15 # default value
+        self.decoder = None
+        self.encoder = zlib.compressobj(level=5, wbits=-MAX_WBITS)
+        self.ping_thread = threading.Thread(target=self.ping, args=(self,), daemon=True)
 
+    @staticmethod
+    def ping(handler):
+        while handler.keep_alive:
+            print("ping")
+            handler.send_text("test", OPCODE_PING)
+            for _ in range(10*PING_INTERVAL):
+                time.sleep(0.1)
+                    
     def handle(self):
         while self.keep_alive:
             if not self.handshake_done:
@@ -349,6 +413,7 @@ class WebSocketHandler(StreamRequestHandler):
             b1, b2 = 0, 0
 
         fin    = b1 & FIN
+        rsv1   = b1 & RSV1
         opcode = b1 & OPCODE
         masked = b2 & MASKED
         payload_length = b2 & PAYLOAD_LEN
@@ -388,12 +453,31 @@ class WebSocketHandler(StreamRequestHandler):
         for message_byte in self.read_bytes(payload_length):
             message_byte ^= masks[len(message_bytes) % 4]
             message_bytes.append(message_byte)
+        # https://github.com/python-websockets/websockets/blob/main/src/websockets/extensions/permessage_deflate.py
+        # https://datatracker.ietf.org/doc/html/rfc7692
+        if self.permessage_deflate and rsv1:
+            if not self.decoder or (self.remote_no_context_takeover and not fin):
+                self.decoder = zlib.decompressobj(wbits=-self.remote_max_window_bits)
+            if fin:
+                message_bytes += EMPTY_COMPRESSED_BLOCK
+            try:
+                message_bytes = self.decoder.decompress(message_bytes, MAX_DECOMPRESS_LENGTH)
+            except zlib.error as exc:
+                logger.warning("decompression failed")
+                return
+            if self.decoder.unconsumed_tail:
+                logger.warning("decompression payload over size limit")
+                return
+            if fin and self.remote_no_context_takeover:
+                self.decoder = None
+        # print(message_bytes)
         opcode_handler(self, message_bytes.decode('utf8'))
 
     def send_message(self, message):
         self.send_text(message)
 
     def send_pong(self, message):
+        print("pong?", message)
         self.send_text(message, OPCODE_PONG)
 
     def send_close(self, status=CLOSE_STATUS_NORMAL, reason=DEFAULT_CLOSE_REASON):
@@ -412,7 +496,7 @@ class WebSocketHandler(StreamRequestHandler):
         assert payload_length <= 125, "We only support short closing reasons at the moment"
 
         # Send CLOSE with status & reason
-        header.append(FIN | OPCODE_CLOSE_CONN)
+        header.append(FIN | OPCODE_CLOSE_CONN) # don't compress (no RSV1)
         header.append(payload_length)
         with self._send_lock:
             self.request.send(header + payload)
@@ -439,22 +523,26 @@ class WebSocketHandler(StreamRequestHandler):
 
         header  = bytearray()
         payload = encode_to_UTF8(message)
+        rsv1 = 0
+        if self.permessage_deflate and opcode == OPCODE_TEXT:
+            payload = compress(payload)
+            rsv1 = RSV1
         payload_length = len(payload)
 
         # Normal payload
         if payload_length <= 125:
-            header.append(FIN | opcode)
+            header.append(FIN | rsv1 | opcode)
             header.append(payload_length)
 
         # Extended payload
         elif payload_length >= 126 and payload_length <= 65535:
-            header.append(FIN | opcode)
+            header.append(FIN | rsv1 | opcode)
             header.append(PAYLOAD_LEN_EXT16)
             header.extend(struct.pack(">H", payload_length))
 
         # Huge extended payload
         elif payload_length < 18446744073709551616:
-            header.append(FIN | opcode)
+            header.append(FIN | rsv1 | opcode)
             header.append(PAYLOAD_LEN_EXT64)
             header.extend(struct.pack(">Q", payload_length))
 
@@ -487,6 +575,21 @@ class WebSocketHandler(StreamRequestHandler):
         except AssertionError:
             self.keep_alive = False
             return
+        
+        if SUPPORT_PERMESSAGE_DEFLATE:
+            try:
+                if 'sec-websocket-extensions' in headers:
+                    for h in headers['sec-websocket-extensions'].lower().split(";"):
+                        if "permessage-deflate" in h:
+                            self.permessage_deflate = True
+                        if "client_no_context_takeover" in h:
+                            self.remote_no_context_takeover = True
+                        if "client_max_window_bits" in h and ":" in h:
+                            _, val = h.split(":", 1)
+                            self.remote_max_window_bits = int(val.strip())
+            except:
+                logger.warning("Error negotiating permessage deflate")
+                self.permessage_deflate = False
 
         try:
             key = headers['sec-websocket-key']
@@ -495,20 +598,23 @@ class WebSocketHandler(StreamRequestHandler):
             self.keep_alive = False
             return
 
-        response = self.make_handshake_response(key)
+        response = self.make_handshake_response(key, self.permessage_deflate)
         with self._send_lock:
             self.handshake_done = self.request.send(response.encode())
         self.valid_client = True
+        self.ping_thread.start()
         self.server._new_client_(self)
 
     @classmethod
-    def make_handshake_response(cls, key):
+    def make_handshake_response(cls, key, permessage_deflate):
+        pd = 'Sec-Websocket-Extensions: permessage-deflate;server_max_window_bits=10;server_no_context_takeover\r\n' if permessage_deflate else ''
         return \
           'HTTP/1.1 101 Switching Protocols\r\n'\
           'Upgrade: websocket\r\n'              \
           'Connection: Upgrade\r\n'             \
           'Sec-WebSocket-Accept: %s\r\n'        \
-          '\r\n' % cls.calculate_response_key(key)
+          '%s' \
+          '\r\n' % (cls.calculate_response_key(key), pd)
 
     @classmethod
     def calculate_response_key(cls, key):
@@ -518,7 +624,9 @@ class WebSocketHandler(StreamRequestHandler):
         return response_key.decode('ASCII')
 
     def finish(self):
+        self.keep_alive = True
         self.server._client_left_(self)
+        self.ping_thread.join()
 
 
 def encode_to_UTF8(data):
