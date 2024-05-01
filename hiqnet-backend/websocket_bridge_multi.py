@@ -1,5 +1,5 @@
 import asyncio, os, sys, threading, ipaddress
-from janus import Queue
+from janus import Queue, SyncQueueEmpty
 import json, hmac, hashlib, time
 from config import load_config
 from concurrent.futures import ThreadPoolExecutor
@@ -278,7 +278,10 @@ def websocket_broadcast_thread(node: str):
     global bc_queues
     print("Starting websocket broadcast thread for:", node)
     while RUN_SERVER:
-        msgs = bc_queues[node].sync_q.get()
+        try:
+            msgs = bc_queues[node].sync_q.get(timeout=1)
+        except SyncQueueEmpty:
+            continue
         for parameter, data in msgs:
             try:
                 SEND_LIST = filter(partial(should_send, parameter=parameter), WEBSOCKET_LIST)
@@ -678,7 +681,7 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        pass
+        RUN_SERVER = False
     print("Exiting...")
 
     safe_shutdown_thread = threading.Thread(target=safe_shutdown_thread)
