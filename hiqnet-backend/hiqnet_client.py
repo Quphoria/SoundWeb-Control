@@ -273,7 +273,6 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         self.transport = None
         self.read_buffer = b""
         self.seq = 0
-        self.seq_cache = {}
         self.udp_test_uuid = None
         self.dead = False
         self.packets = 0
@@ -366,7 +365,7 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         print(self.name, "Connected", flush=True)
         self.status_ok = False
 
-        self.decode_thread = threading.Thread(target=self.msg_decode_thread, args=(self,))
+        self.decode_thread = threading.Thread(target=self.decode_handler, args=(self,))
         self.decode_thread.daemon = True
         self.decode_thread.start()
         
@@ -376,70 +375,75 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         self._ready.set()
 
     @staticmethod
-    def msg_decode_thread(protocol):
+    def decode_handler(protocol):
+        name = protocol.name
+        resp_queue = protocol.resp_queue
+        seq_cache = {}
+
         while not protocol.decode_queue.sync_q.closed:
-            data = protocol.decode_queue.sync_q.get()
-            protocol.decode_handler(data)
-
-    def decode_handler(self, data):
-        st = time.time()
-
-        try:
-            msgs = decode_message(data)
-        except DecodeFailed as ex:
-            print(self.name, "Decode Error:", ex, flush=True)
-            self.packet_decode_time += time.time() - st
-            return
-        
-        self.good_packets += 1
-        
-        for msg in msgs:
-            if type(msg) == DecodeFailed:
-                print(self.name, "Decode Error:", msg, flush=True)
+            try:
+                data = protocol.decode_queue.sync_q.get(timeout=1)
+            except SyncQueueEmpty:
                 continue
 
-            if type(msg) == IncorrectDestination:
-                print(self.name, "Incorrect Destination:", msg, flush=True)
-                continue
+            st = time.time()
 
-            if type(msg) in (MultiObjectParamSet, MultiParamSet, ParamSetPercent):
-                for p in Packet.from_msg(msg):
-                    if type(p) == UnsupportedMessage or type(p) == DecodeFailed:
-                        print(self.name, "Error decoding packet:", p, flush=True)
-                        continue
+            try:
+                msgs = decode_message(data)
+            except DecodeFailed as ex:
+                print(name, "Decode Error:", ex, flush=True)
+                protocol.packet_decode_time += time.time() - st
+                return
+        
+            protocol.good_packets += 1
+            
+            for msg in msgs:
+                if type(msg) == DecodeFailed:
+                    print(name, "Decode Error:", msg, flush=True)
+                    continue
 
-                    seq_cache_key = (
-                        p.message_type,
-                        p.node,
-                        p.v_device,
-                        p.obj_id,
-                        p.param_id
-                    )
+                if type(msg) == IncorrectDestination:
+                    print(name, "Incorrect Destination:", msg, flush=True)
+                    continue
 
-                    t = time.time()
-                    if seq_cache_key in self.seq_cache:
-                        old_time, old_seq_num = self.seq_cache[seq_cache_key]
-
-                        # ensure sequence number is spaced enough apart
-                        # or has timed out
-                        if (t - old_time < SEQ_NUM_TIMEOUT and
-                                msg.header.sequence_number < old_seq_num and
-                                old_seq_num - msg.header.sequence_number < SEQ_NUM_MIN_DIST):
-                            
-                            print(self.name, "Out of order sequence from", msg.header.source_address, flush=True)
+                if type(msg) in (MultiObjectParamSet, MultiParamSet, ParamSetPercent):
+                    for p in Packet.from_msg(msg):
+                        if type(p) == UnsupportedMessage or type(p) == DecodeFailed:
+                            print(name, "Error decoding packet:", p, flush=True)
                             continue
-                    
-                    # add to sequence number cache
-                    self.seq_cache[seq_cache_key] = (t, msg.header.sequence_number)
 
-                    if self.resp_queue.sync_q.closed:
-                        self.end_connection()
-                        return
-                    if self.resp_queue.sync_q.full():
-                        self.resp_queue.sync_q.get() # remove oldest if queue full
-                    self.resp_queue.sync_q.put(p.to_json())
-        
-        self.packet_decode_time += time.time() - st
+                        seq_cache_key = (
+                            p.message_type,
+                            p.node,
+                            p.v_device,
+                            p.obj_id,
+                            p.param_id
+                        )
+
+                        t = time.time()
+                        if seq_cache_key in seq_cache:
+                            old_time, old_seq_num = seq_cache[seq_cache_key]
+
+                            # ensure sequence number is spaced enough apart
+                            # or has timed out
+                            if (t - old_time < SEQ_NUM_TIMEOUT and
+                                    msg.header.sequence_number < old_seq_num and
+                                    old_seq_num - msg.header.sequence_number < SEQ_NUM_MIN_DIST):
+                                
+                                print(name, "Out of order sequence from", msg.header.source_address, flush=True)
+                                continue
+                        
+                        # add to sequence number cache
+                        seq_cache[seq_cache_key] = (t, msg.header.sequence_number)
+
+                        if resp_queue.sync_q.closed:
+                            protocol.end_connection()
+                            return
+                        if resp_queue.sync_q.full():
+                            resp_queue.sync_q.get() # remove oldest if queue full
+                        resp_queue.sync_q.put(p.to_json())
+            
+            protocol.packet_decode_time += time.time() - st
         
     def datagram_received(self, data, _):
         # check for test packet
@@ -453,8 +457,6 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
 
         if not self.decode_queue.sync_q.closed:
             self.decode_queue.sync_q.put(data)
-        
-        # self.decode_handler(data)
 
     def connection_lost(self, exc):
         print(self.name, "Connection Error:", exc, flush=True)
