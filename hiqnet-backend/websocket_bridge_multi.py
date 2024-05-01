@@ -583,6 +583,7 @@ async def main():
     resp_queues = {key: Queue(200) for key in config["nodes"].keys()}
     bc_queues = {key: Queue(200) for key in config["nodes"].keys()}
     resp_queues[UDP_NODE_ID] = Queue(200)
+    bc_queues[UDP_NODE_ID] = Queue(200)
     subscribed_params = {key: list() for key in config["nodes"].keys()}
 
     # check UDP works
