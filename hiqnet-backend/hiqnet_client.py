@@ -10,6 +10,7 @@ UDP_MAX_FAIL_THRESHOLD = 6 # 30 seconds (5*6)
 UDP_DISCOVERY_BROADCAST_INTERVAL = 5 # 5 seconds
 PACKETS_PER_SECOND_INTERVAL = 5 # 5 seconds
 UDP_DECODE_WORKERS = 5
+UDP_RESP_QUEUE_FULL_WARN_INTEVAL = 2 # 2 seconds
 
 SEQ_NUM_MIN_DIST = 0x1000
 SEQ_NUM_TIMEOUT = 10 # 10 seconds
@@ -386,6 +387,7 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         name = protocol.name
         resp_queue = protocol.resp_queue
         seq_cache = {}
+        last_resp_queue_full_warn = 0
 
         while not protocol.decode_queue.sync_q.closed:
             try:
@@ -452,7 +454,10 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
                     protocol.end_connection()
                     return
                 if resp_queue.sync_q.full():
-                    print(name, "resp_queue full!")
+                    t = time.time()
+                    if t - last_resp_queue_full_warn > UDP_RESP_QUEUE_FULL_WARN_INTEVAL:
+                        last_resp_queue_full_warn = t
+                        print(name, "resp_queue full!")
                     resp_queue.sync_q.get() # remove oldest if queue full
                 resp_queue.sync_q.put(resp_data)
             
