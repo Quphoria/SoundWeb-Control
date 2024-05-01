@@ -55,10 +55,8 @@ except:
 if VERSION == "":
     VERSION = "Unknown"
 
-def should_send(client, msg=None):
-    if msg is None:
-        return True
-    if not "parameter" in msg:
+def should_send(client, parameter=None):
+    if parameter is None:
         return True
     addr = client.get("address", "")
     if not addr:
@@ -68,7 +66,7 @@ def should_send(client, msg=None):
     _, _, user_subs = WS_USER_DATA[addr]
     if user_subs is None:
         return False
-    return msg["parameter"] in user_subs[0] or msg["parameter"] in user_subs[1]
+    return parameter in user_subs[0] or parameter in user_subs[1]
 
 def subscribe(p: Packet, addr: str) -> Optional[dict]:
     global subscribed_params, param_cache, param_cache_lock, pc_param_cache, param_cache_lock
@@ -249,31 +247,43 @@ async def resp_broadcast(node: str):
     while True:
         # Get a "work item" out of the queue.
         msgs = await resp_queues[node].async_q.get()
+        bc_msgs = []
         for msg in msgs:
             data = json.dumps(msg)
+            parameter = msg["parameter"]
             if msg["type"] == "SET":
                 with param_cache_lock:
                     t = time.time()
                     # check if value has stayed the same in the cache (only check if cache line is valid)
-                    if msg["parameter"] in param_cache and param_cache[msg["parameter"]][1] == data and param_cache[msg["parameter"]][0] is not None:
+                    if parameter in param_cache and param_cache[parameter][1] == data and param_cache[parameter][0] is not None:
                         # if it has not been the minimum rebroadcast time, don't bother resending the data
-                        if t - param_cache[msg["parameter"]][0] < param_rebroadcast_time:
+                        if t - param_cache[parameter][0] < param_rebroadcast_time:
                             continue
-                    param_cache[msg["parameter"]] = (t, data)
+                    param_cache[parameter] = (t, data)
             elif msg["type"] == "SET_PERCENT":
                 with pc_param_cache_lock:
                     t = time.time()
                     # check if value has stayed the same in the cache (only check if cache line is valid)
-                    if msg["parameter"] in pc_param_cache and pc_param_cache[msg["parameter"]][1] == data and pc_param_cache[msg["parameter"]][0] is not None:
+                    if parameter in pc_param_cache and pc_param_cache[parameter][1] == data and pc_param_cache[parameter][0] is not None:
                         # if it has not been the minimum rebroadcast time, don't bother resending the data
-                        if t - pc_param_cache[msg["parameter"]][0] < param_rebroadcast_time:
+                        if t - pc_param_cache[parameter][0] < param_rebroadcast_time:
                             continue
-                    pc_param_cache[msg["parameter"]] = (t, data)
+                    pc_param_cache[parameter] = (t, data)
             if config["hiqnet_debug"]:
                 print(f"HiQnet RX [{node}]:", msg, flush=True)
-            SEND_LIST = filter(partial(should_send, msg=msg), WEBSOCKET_LIST)
+            bc_msgs.append((parameter, data))
+        await bc_queues[node].async_q.put(bc_msgs)
+
+def websocket_broadcast_thread(node: str):
+    global bc_queues
+    print("Starting websocket broadcast thread for:", node)
+    while RUN_SERVER:
+        msgs = bc_queues[node].sync_q.get()
+        for parameter, data in msgs:
+            SEND_LIST = filter(partial(should_send, parameter=parameter), WEBSOCKET_LIST)
             if SEND_LIST:
                 ws_server.send_message_to_list(SEND_LIST, data)
+    print("Finished websocket broadcast thread for:", node)
 
 def get_packet_node_handler(p: Packet) -> str:
     global config, nodes
@@ -562,14 +572,16 @@ def test_udp_receive(bind_ip, hiqnet_port, dest_ip):
 
 
 hiqnet_udp_thread = None
-hiqnet_tcp_threads = []
+hiqnet_tcp_threads = {}
+broadcast_threads = {}
 UDP_NODE_ID = "UDP"
 async def main():
-    global config, ws_server, msg_queues, resp_queues, hiqnet_udp_thread, hiqnet_tcp_threads, subscribed_params, health_check_queue, stats_queue, RUN_SERVER
+    global config, ws_server, msg_queues, resp_queues, bc_queues, hiqnet_udp_thread, hiqnet_tcp_threads, broadcast_threads, subscribed_params, health_check_queue, stats_queue, RUN_SERVER
     health_check_queue = Queue(50)
     stats_queue = Queue(50)
     msg_queues = {key: Queue(200) for key in config["nodes"].keys()}
     resp_queues = {key: Queue(200) for key in config["nodes"].keys()}
+    bc_queues = {key: Queue(200) for key in config["nodes"].keys()}
     resp_queues[UDP_NODE_ID] = Queue(200)
     subscribed_params = {key: list() for key in config["nodes"].keys()}
 
@@ -595,6 +607,13 @@ async def main():
         for key, ip in config["nodes"].items()}
     hiqnet_udp_thread = HiQnetUDPListenerThread("HiQnet UDP Thread", UDP_NODE_ID, "0.0.0.0", config["server_ip_address"], HIQNET_PORT, resp_queues[UDP_NODE_ID], health_check_queue, stats_queue, disco_info, broadcast_address)
     
+    broadcast_threads = {
+        key: threading.Thread(target=websocket_broadcast_thread, args=(key,), daemon=True)
+        for key in config["nodes"].keys()}
+    
+    for t in broadcast_threads.values():
+        t.start()
+
     # start udp thread first to receive initial messages
     hiqnet_udp_thread.start()
     for t in hiqnet_tcp_threads.values():
@@ -629,6 +648,9 @@ def safe_shutdown_thread():
         for t in hiqnet_tcp_threads.values():
             t.exitFlag = True
         for t in hiqnet_tcp_threads.values():
+            t.join()
+    if broadcast_threads:
+        for t in broadcast_threads.values():
             t.join()
     if ws_server:
         ws_server.shutdown_gracefully()
