@@ -6,7 +6,7 @@ from hiqnet_proto import *
 
 RX_MSG_SIZE = 4096
 UDP_TEST_INTERVAL = 5 # 5 seconds
-UDP_MAX_FAIL_THRESHOLD = 3 # 15 seconds (5*3)
+UDP_MAX_FAIL_THRESHOLD = 6 # 30 seconds (5*6)
 UDP_DISCOVERY_BROADCAST_INTERVAL = 5 # 5 seconds
 PACKETS_PER_SECOND_INTERVAL = 5 # 5 seconds
 
@@ -342,6 +342,7 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
                 "good_pps": self.good_packets / PACKETS_PER_SECOND_INTERVAL,
                 "total_pps": self.packets / PACKETS_PER_SECOND_INTERVAL,
                 "decode_time": self.packet_decode_time / self.packets,
+                "test_rtt": self.test_rtt,
             }})
             self.packets = 0
             self.good_packets = 0
@@ -465,7 +466,6 @@ class HiQnetUDPListenerThread(threading.Thread):
                 self.disco_info, self.broadcast_address, loop),
             (self.bind_ip, self.hiqnet_port),
             allow_broadcast=True)
-        n = 0
         while not self.exitFlag and not self.restartFlag:
             await asyncio.sleep(1)
             if protocol.dead: # failed too many tests
