@@ -610,6 +610,7 @@ async def main():
     broadcast_threads = {
         key: threading.Thread(target=websocket_broadcast_thread, args=(key,), daemon=True)
         for key in config["nodes"].keys()}
+    broadcast_threads[UDP_NODE_ID] = threading.Thread(target=websocket_broadcast_thread, args=(UDP_NODE_ID,), daemon=True)
     
     for t in broadcast_threads.values():
         t.start()
