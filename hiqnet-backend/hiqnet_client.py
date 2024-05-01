@@ -1,5 +1,4 @@
 import asyncore, asyncio, threading, time, functools, socket, uuid
-from concurrent.futures import ThreadPoolExecutor
 from janus import Queue, SyncQueue, SyncQueueEmpty
 import janus
 
@@ -282,12 +281,16 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         self.packet_decode_time = 0
         self.test_st = 0
         self.test_rtt = None
-        self.decode_executor = None
+        self.decode_queue = Queue(200)
+        self.decode_thread = None
 
     def end_connection(self):
         self.discovery_task.cancel()
         self.udp_test_task.cancel()
         self.stats_task.cancel()
+        self.decode_queue.close()
+        if self.decode_thread:
+            self.decode_thread.join()
 
     def next_seq(self):
         s = self.seq
@@ -362,11 +365,21 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
     def connection_made(self, transport):
         print(self.name, "Connected", flush=True)
         self.status_ok = False
+
+        self.decode_thread = threading.Thread(target=self.msg_decode_thread, args=(self,))
+        self.decode_thread.daemon = True
+        self.decode_thread.start()
         
         self.transport = transport
         # clear read buffer
         self.read_buffer = b""
         self._ready.set()
+
+    @staticmethod
+    def msg_decode_thread(protocol):
+        while not protocol.decode_queue.sync_q.closed:
+            data = protocol.decode_queue.sync_q.get()
+            protocol.decode_handler(data)
 
     def decode_handler(self, data):
         st = time.time()
@@ -438,8 +451,8 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         
         self.packets += 1
 
-        if self.decode_executor:
-            self.decode_executor.submit(self.decode_handler, data)
+        if not self.decode_queue.sync_q.closed:
+            self.decode_queue.sync_q.put(data)
         
         # self.decode_handler(data)
 
@@ -474,12 +487,10 @@ class HiQnetUDPListenerThread(threading.Thread):
             (self.bind_ip, self.hiqnet_port),
             allow_broadcast=True)
 
-        with ThreadPoolExecutor(max_workers=UDP_DECODE_WORKERS) as executor:
-            protocol.decode_executor = executor
-            while not self.exitFlag and not self.restartFlag:
-                await asyncio.sleep(1)
-                if protocol.dead: # failed too many tests
-                    break
+        while not self.exitFlag and not self.restartFlag:
+            await asyncio.sleep(1)
+            if protocol.dead: # failed too many tests
+                break
         transport.close()
         # cancel tasks
         protocol.end_connection()
