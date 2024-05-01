@@ -280,9 +280,12 @@ def websocket_broadcast_thread(node: str):
     while RUN_SERVER:
         msgs = bc_queues[node].sync_q.get()
         for parameter, data in msgs:
-            SEND_LIST = filter(partial(should_send, parameter=parameter), WEBSOCKET_LIST)
-            if SEND_LIST:
-                ws_server.send_message_to_list(SEND_LIST, data)
+            try:
+                SEND_LIST = filter(partial(should_send, parameter=parameter), WEBSOCKET_LIST)
+                if SEND_LIST:
+                    ws_server.send_message_to_list(SEND_LIST, data)
+            except Exception as ex:
+                print(f"Websocket broadcast thread {node} error:", ex)
     print("Finished websocket broadcast thread for:", node)
 
 def get_packet_node_handler(p: Packet) -> str:
