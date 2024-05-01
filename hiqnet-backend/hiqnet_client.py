@@ -132,6 +132,8 @@ class HiQnetClientProtocol(asyncio.Protocol):
             msgs = decode_message(data)
         except DecodeFailed as ex:
             print("Decode Error:", ex)
+        
+        resp_data = []
         for msg in msgs:
             if type(msg) == DecodeFailed:
                 print(self.name, "Decode Error:", msg, flush=True)
@@ -169,12 +171,15 @@ class HiQnetClientProtocol(asyncio.Protocol):
                     if type(p) == UnsupportedMessage or type(p) == DecodeFailed:
                         print(self.name, "Error decoding packet:", p, flush=True)
                         continue
-                    if self.resp_queue.closed:
-                        self.end_connection()
-                        return
-                    if self.resp_queue.full():
-                        self.resp_queue.get() # remove oldest if queue full
-                    self.resp_queue.put(p.to_json())
+                    resp_data.append(p.to_json())
+
+        if resp_data:
+            if self.resp_queue.closed:
+                self.end_connection()
+                return
+            if self.resp_queue.full():
+                self.resp_queue.get() # remove oldest if queue full
+            self.resp_queue.put(resp_data)
 
     def connection_lost(self, exc):
         print(self.name, "Connection Error:", exc, flush=True)
@@ -398,6 +403,8 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
                 return
         
             protocol.good_packets += 1
+
+            resp_data = []
             
             for msg in msgs:
                 if type(msg) == DecodeFailed:
@@ -438,12 +445,16 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
                         # add to sequence number cache
                         seq_cache[seq_cache_key] = (t, msg.header.sequence_number)
 
-                        if resp_queue.sync_q.closed:
-                            protocol.end_connection()
-                            return
-                        if resp_queue.sync_q.full():
-                            resp_queue.sync_q.get() # remove oldest if queue full
-                        resp_queue.sync_q.put(p.to_json())
+                        resp_data.append(p.to_json())
+
+            if resp_data:
+                if resp_queue.sync_q.closed:
+                    protocol.end_connection()
+                    return
+                if resp_queue.sync_q.full():
+                    print(name, "resp_queue full!")
+                    resp_queue.sync_q.get() # remove oldest if queue full
+                resp_queue.sync_q.put(resp_data)
             
             protocol.packet_decode_time += time.time() - st
         

@@ -248,26 +248,27 @@ async def resp_broadcast(node: str):
     global param_cache, param_cache_lock, pc_param_cache, param_cache_lock, ws_server, WEBSOCKET_LIST
     while True:
         # Get a "work item" out of the queue.
-        msg = await resp_queues[node].async_q.get()
-        data = json.dumps(msg)
-        if msg["type"] == "SET":
-            with param_cache_lock:
-                t = time.time()
-                # check if value has stayed the same in the cache (only check if cache line is valid)
-                if msg["parameter"] in param_cache and param_cache[msg["parameter"]][1] == data and param_cache[msg["parameter"]][0] is not None:
-                    # if it has not been the minimum rebroadcast time, don't bother resending the data
-                    if t - param_cache[msg["parameter"]][0] < param_rebroadcast_time:
-                        continue
-                param_cache[msg["parameter"]] = (t, data)
-        elif msg["type"] == "SET_PERCENT":
-            with pc_param_cache_lock:
-                t = time.time()
-                # check if value has stayed the same in the cache (only check if cache line is valid)
-                if msg["parameter"] in pc_param_cache and pc_param_cache[msg["parameter"]][1] == data and pc_param_cache[msg["parameter"]][0] is not None:
-                    # if it has not been the minimum rebroadcast time, don't bother resending the data
-                    if t - pc_param_cache[msg["parameter"]][0] < param_rebroadcast_time:
-                        continue
-                pc_param_cache[msg["parameter"]] = (t, data)
+        msgs = await resp_queues[node].async_q.get()
+        for msg in msgs:
+            data = json.dumps(msg)
+            if msg["type"] == "SET":
+                with param_cache_lock:
+                    t = time.time()
+                    # check if value has stayed the same in the cache (only check if cache line is valid)
+                    if msg["parameter"] in param_cache and param_cache[msg["parameter"]][1] == data and param_cache[msg["parameter"]][0] is not None:
+                        # if it has not been the minimum rebroadcast time, don't bother resending the data
+                        if t - param_cache[msg["parameter"]][0] < param_rebroadcast_time:
+                            continue
+                    param_cache[msg["parameter"]] = (t, data)
+            elif msg["type"] == "SET_PERCENT":
+                with pc_param_cache_lock:
+                    t = time.time()
+                    # check if value has stayed the same in the cache (only check if cache line is valid)
+                    if msg["parameter"] in pc_param_cache and pc_param_cache[msg["parameter"]][1] == data and pc_param_cache[msg["parameter"]][0] is not None:
+                        # if it has not been the minimum rebroadcast time, don't bother resending the data
+                        if t - pc_param_cache[msg["parameter"]][0] < param_rebroadcast_time:
+                            continue
+                    pc_param_cache[msg["parameter"]] = (t, data)
         if config["hiqnet_debug"]:
             print(f"HiQnet RX [{node}]:", msg, flush=True)
         SEND_LIST = filter(partial(should_send, msg=msg), WEBSOCKET_LIST)
