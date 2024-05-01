@@ -346,14 +346,16 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
             decode_time = 0
             packets = self.packets
             if packets != 0:
-                decode_time = self.packet_decode_time / packets
+                decode_time = 1000 * self.packet_decode_time / packets
+            decode_percent = 100 * self.packet_decode_time / PACKETS_PER_SECOND_INTERVAL
             test_rtt = self.test_rtt
             if test_rtt is not None:
                 test_rtt *= 1000
             await self.stats_queue.async_q.put({"id": self.h_id, "stats": {
                 "good_pps": self.good_packets / PACKETS_PER_SECOND_INTERVAL,
                 "total_pps": self.packets / PACKETS_PER_SECOND_INTERVAL,
-                "decode_time": decode_time,
+                "decode_time_ms": decode_time,
+                "decode_time_percent": f"{decode_percent:.2f}%",
                 "test_rtt_ms": test_rtt,
             }})
             self.packets = 0
@@ -475,7 +477,7 @@ class HiQnetUDPListenerThread(threading.Thread):
         self.health_queue = health_check_queue
         self.health_queue.sync_q.put({"id": self.h_id, "status": False})
         self.stats_queue = stats_queue
-        self.stats_queue.sync_q.put({"id": self.h_id, "stats": {"good_pps": None, "total_pps": None, "decode_time": None, "test_rtt_ms": None}})
+        self.stats_queue.sync_q.put({"id": self.h_id, "stats": {"good_pps": None, "total_pps": None, "decode_time": None, "decode_time_percent": None, "test_rtt_ms": None}})
         self.disco_info = disco_info
         self.broadcast_address = broadcast_address
         self.exitFlag = False
@@ -516,7 +518,7 @@ class HiQnetUDPListenerThread(threading.Thread):
             except Exception as ex:
                 print(self.name, "Error:", ex, flush=True)
             self.health_queue.sync_q.put({"id": self.h_id, "status": False})
-            self.stats_queue.sync_q.put({"id": self.h_id, "stats": {"good_pps": None, "total_pps": None, "decode_time": None, "test_rtt_ms": None}})
+            self.stats_queue.sync_q.put({"id": self.h_id, "stats": {"good_pps": None, "total_pps": None, "decode_time": None, "decode_time_percent": None, "test_rtt_ms": None}})
             if not self.exitFlag:
                 print(self.name, "HiQnet UDP listener thread stopped, Restarting in 5 seconds", flush=True)
                 for _ in range(5):
