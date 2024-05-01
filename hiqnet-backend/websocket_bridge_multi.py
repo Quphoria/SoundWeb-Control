@@ -44,6 +44,7 @@ pc_param_cache = {}
 param_rebroadcast_time = 5 # 5 seconds
 
 client_thread_status = {}
+stats = {}
 
 VERSION = ""
 try:
@@ -350,6 +351,12 @@ def ws_on_data_receive(client, server, message):
                 "type": "status",
                 "data": client_thread_status
             }))
+    elif message == "stats":
+        if user_data.get("admin", False):
+            server.send_message(client, json.dumps({
+                "type": "stats",
+                "data": stats
+            }))
     elif message == "version":
         if user_data.get("admin", False):
             server.send_message(client, json.dumps({
@@ -449,6 +456,7 @@ def ws_on_connection_close(client, server):
                     client_unsubscribe(param_str, True, addr)
 
 health_check_queue = None
+stats_queue = None
 
 def update_health(status):
     healthy = all(s for s in status.values()) if status else False
@@ -475,6 +483,16 @@ async def health_check():
         client_thread_status[status["id"]] = status["status"]
 
         update_health(client_thread_status)
+
+async def stats_check():
+    global stats, RUN_SERVER
+    stats = {}
+    if stats_queue is None:
+        return
+    while RUN_SERVER:
+        # Get a "work item" out of the queue.
+        stat = await stats_queue.async_q.get()
+        stats[stat["id"]] = stat["stats"]
 
 async def unsubscribe_delay_task():
     global RUN_SERVER
@@ -546,8 +564,9 @@ hiqnet_udp_thread = None
 hiqnet_tcp_threads = []
 UDP_NODE_ID = "UDP"
 async def main():
-    global config, ws_server, msg_queues, resp_queues, hiqnet_udp_thread, hiqnet_tcp_threads, subscribed_params, health_check_queue, RUN_SERVER
+    global config, ws_server, msg_queues, resp_queues, hiqnet_udp_thread, hiqnet_tcp_threads, subscribed_params, health_check_queue, stats_queue, RUN_SERVER
     health_check_queue = Queue(50)
+    stats_queue = Queue(50)
     msg_queues = {key: Queue(200) for key in config["nodes"].keys()}
     resp_queues = {key: Queue(200) for key in config["nodes"].keys()}
     resp_queues[UDP_NODE_ID] = Queue(200)
@@ -573,7 +592,7 @@ async def main():
     hiqnet_tcp_threads = {
         key: HiQnetThread(f"HiQnet {key} TCP Thread", get_node_alias(key), int(key, base=16), ip, HIQNET_PORT,msg_queues[key], resp_queues[key], subscribed_params[key], health_check_queue, disco_info)
         for key, ip in config["nodes"].items()}
-    hiqnet_udp_thread = HiQnetUDPListenerThread("HiQnet UDP Thread", UDP_NODE_ID, "0.0.0.0", config["server_ip_address"], HIQNET_PORT, resp_queues[UDP_NODE_ID], health_check_queue, disco_info, broadcast_address)
+    hiqnet_udp_thread = HiQnetUDPListenerThread("HiQnet UDP Thread", UDP_NODE_ID, "0.0.0.0", config["server_ip_address"], HIQNET_PORT, resp_queues[UDP_NODE_ID], health_check_queue, stats_queue, disco_info, broadcast_address)
     
     # start udp thread first to receive initial messages
     hiqnet_udp_thread.start()
@@ -591,20 +610,19 @@ async def main():
     ws_server.set_fn_message_received(ws_on_data_receive)
     ws_server.run_forever(threaded=True)
     health_task = asyncio.create_task(health_check())
+    stats_task = asyncio.create_task(stats_check())
     unsubscribe_task = asyncio.create_task(unsubscribe_delay_task())
     while RUN_SERVER:
         await asyncio.sleep(2)
-    health_task.cancel()
-    unsubscribe_task.cancel()
-    try:
-        await health_task
-    except asyncio.CancelledError:
-        pass
-    try:
-        await unsubscribe_task
-    except asyncio.CancelledError:
-        pass  
-
+        
+    for task in [health_task, unsubscribe_task, stats_task]:
+        task.cancel()
+    for task in [health_task, unsubscribe_task, stats_task]:
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    
 def safe_shutdown_thread():
     if hiqnet_tcp_threads:
         for t in hiqnet_tcp_threads.values():

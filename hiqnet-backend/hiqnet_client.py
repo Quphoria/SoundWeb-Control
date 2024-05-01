@@ -1,5 +1,4 @@
-import asyncore, asyncio, threading, time, functools, socket, uuid, random
-from contextlib import suppress
+import asyncore, asyncio, threading, time, functools, socket, uuid
 from janus import Queue, SyncQueue, SyncQueueEmpty
 import janus
 
@@ -9,6 +8,7 @@ RX_MSG_SIZE = 4096
 UDP_TEST_INTERVAL = 5 # 5 seconds
 UDP_MAX_FAIL_THRESHOLD = 3 # 15 seconds (5*3)
 UDP_DISCOVERY_BROADCAST_INTERVAL = 5 # 5 seconds
+PACKETS_PER_SECOND_INTERVAL = 5 # 5 seconds
 
 SEQ_NUM_MIN_DIST = 0x1000
 SEQ_NUM_TIMEOUT = 10 # 10 seconds
@@ -178,7 +178,6 @@ class HiQnetClientProtocol(asyncio.Protocol):
     def connection_lost(self, exc):
         print(self.name, "Connection Error:", exc, flush=True)
         self.end_connection()
-        self.loop.stop()
 
 class HiQnetThread(threading.Thread):
     def __init__(self, name: str, h_id: str, node_id: int, hiqnet_ip: str, hiqnet_port: int, msg_queue: Queue, resp_queue: Queue, subscribed_params: list, health_check_queue: Queue, disco_info: DiscoveryInformation):
@@ -254,8 +253,171 @@ class HiQnetThread(threading.Thread):
                         time.sleep(1)
         print(self.name, "exited", flush=True)
 
+class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
+    def __init__(self, name: str, h_id: str, server_ip: str, hiqnet_port: int, resp_queue: Queue, health_queue: Queue, stats_queue: Queue, disco_info: DiscoveryInformation, broadcast_address: str, loop):
+        self.name = name
+        self.h_id = h_id
+        self.server_ip = server_ip
+        self.hiqnet_port = hiqnet_port
+        self.resp_queue = resp_queue
+        self.health_queue = health_queue
+        self.stats_queue = stats_queue
+        self.disco_info = disco_info
+        self.broadcast_address = broadcast_address
+        self._ready = asyncio.Event()
+        self.loop = loop
+        self.udp_test_task = loop.create_task(self.udp_test())
+        self.discovery_task = loop.create_task(self.discovery_broadcast())
+        self.stats_task = loop.create_task(self.update_stats())
+        self.transport = None
+        self.read_buffer = b""
+        self.seq = 0
+        self.seq_cache = {}
+        self.udp_test_uuid = None
+        self.dead = False
+        self.packets = 0
+        self.good_packets = 0
+
+    def end_connection(self):
+        self.discovery_task.cancel()
+        self.udp_test_task.cancel()
+        self.stats_task.cancel()
+
+    def next_seq(self):
+        s = self.seq
+        self.seq = (s+1) % 0x10000 # max is 0xffff
+        return s
+
+    async def udp_test(self):
+        """Periodically test the UDP socket"""
+        await self._ready.wait()
+        test_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            test_socket.settimeout(1)
+            failed_tests = -1
+            while self.loop.is_running():
+                if self.udp_test_uuid is None:
+                    if failed_tests != 0:
+                        await self.health_queue.async_q.put({"id": self.h_id, "status": True}) # update status
+                    failed_tests = 0
+                else:
+                    print("UDP Test Packet Failed", flush=True)
+                    if failed_tests == 0:
+                        await self.health_queue.async_q.put({"id": self.h_id, "status": False}) # update status
+                    failed_tests += 1
+                    if failed_tests >= UDP_MAX_FAIL_THRESHOLD:
+                        self.dead = True
+                        raise Exception(f"Failed {UDP_MAX_FAIL_THRESHOLD} Consecutive UDP Test Packets")
+                self.udp_test_uuid = str(uuid.uuid4()).encode()
+                test_socket.sendto(self.udp_test_uuid, (self.server_ip, self.hiqnet_port))
+                await asyncio.sleep(UDP_TEST_INTERVAL)
+        finally:
+            try:
+                test_socket.close()
+            except:
+                pass
+
+    async def discovery_broadcast(self):
+        """Periodically send DiscoInfo broadcast packets"""
+        await self._ready.wait()
+        disco_info_msg = DiscoInfo(self.disco_info, is_query=False, header=HiQnetHeader(HiQnetAddress.broadcast()))
+        disco_info_msg.header.flags.guaranteed = False
+        while self.loop.is_running():
+            try:
+                self.transport.sendto(disco_info_msg.encode(self.next_seq()), (self.broadcast_address, self.hiqnet_port))
+            except UnsupportedMessage as ex:
+                print(self.name, "Error Sending UDP Discovery Packet:", ex)
+            await asyncio.sleep(UDP_DISCOVERY_BROADCAST_INTERVAL)
+
+    async def update_stats(self):
+        """Periodically update stats"""
+        await self._ready.wait()
+        while self.loop.is_running():
+            total_pps = self.packets / PACKETS_PER_SECOND_INTERVAL
+            good_pps = self.good_packets / PACKETS_PER_SECOND_INTERVAL
+            await self.stats_queue.async_q.put({"id": self.h_id, "stats": {"good_pps": good_pps, "total_pps": total_pps}})
+            self.packets = 0
+            self.good_packets = 0
+            await asyncio.sleep(PACKETS_PER_SECOND_INTERVAL)
+
+    def connection_made(self, transport):
+        print(self.name, "Connected", flush=True)
+        self.status_ok = False
+        
+        self.transport = transport
+        # clear read buffer
+        self.read_buffer = b""
+        self._ready.set()
+        
+    def datagram_received(self, data, _):
+        # check for test packet
+        self.packets += 1
+
+        if self.udp_test_uuid and data == self.udp_test_uuid:
+            self.udp_test_uuid = None
+            return
+
+        try:
+            msgs = decode_message(data)
+        except DecodeFailed as ex:
+            print(self.name, "Decode Error:", ex, flush=True)
+            return
+        
+        self.good_packets += 1
+        
+        for msg in msgs:
+            if type(msg) == DecodeFailed:
+                print(self.name, "Decode Error:", ex, flush=True)
+                return
+
+            if type(msg) == IncorrectDestination:
+                print(self.name, "Incorrect Destination:", msg, flush=True)
+                continue
+
+            if type(msg) in (MultiObjectParamSet, MultiParamSet, ParamSetPercent):
+                for p in Packet.from_msg(msg):
+                    if type(p) == UnsupportedMessage or type(p) == DecodeFailed:
+                        print(self.name, "Error decoding packet:", p, flush=True)
+                        continue
+
+                    seq_cache_key = (
+                        p.message_type,
+                        p.node,
+                        p.v_device,
+                        p.obj_id,
+                        p.param_id
+                    )
+
+                    t = time.time()
+                    if seq_cache_key in self.seq_cache:
+                        old_time, old_seq_num = self.seq_cache[seq_cache_key]
+
+                        # ensure sequence number is spaced enough apart
+                        # or has timed out
+                        if (t - old_time < SEQ_NUM_TIMEOUT and
+                                msg.header.sequence_number < old_seq_num and
+                                old_seq_num - msg.header.sequence_number < SEQ_NUM_MIN_DIST):
+                            
+                            print(self.name, "Out of order sequence from", msg.header.source_address, flush=True)
+                            continue
+                    
+                    # add to sequence number cache
+                    self.seq_cache[seq_cache_key] = (t, msg.header.sequence_number)
+
+                    if self.resp_queue.sync_q.closed:
+                        self.end_connection()
+                        return
+                    if self.resp_queue.sync_q.full():
+                        self.resp_queue.sync_q.get() # remove oldest if queue full
+                    self.resp_queue.sync_q.put(p.to_json())
+
+    def connection_lost(self, exc):
+        print(self.name, "Connection Error:", exc, flush=True)
+        self.end_connection()
+
+
 class HiQnetUDPListenerThread(threading.Thread):
-    def __init__(self, name: str, h_id: str, bind_ip: str, server_ip: str, hiqnet_port: int, resp_queue: Queue, health_check_queue: Queue, disco_info: DiscoveryInformation, broadcast_address: str):
+    def __init__(self, name: str, h_id: str, bind_ip: str, server_ip: str, hiqnet_port: int, resp_queue: Queue, health_check_queue: Queue, stats_queue: Queue, disco_info: DiscoveryInformation, broadcast_address: str):
         super().__init__(daemon=True)
         self.name = name
         self.h_id = h_id
@@ -265,142 +427,51 @@ class HiQnetUDPListenerThread(threading.Thread):
         self.resp_queue = resp_queue
         self.health_queue = health_check_queue
         self.health_queue.sync_q.put({"id": self.h_id, "status": False})
+        self.stats_queue = stats_queue
+        self.stats_queue.sync_q.put({"id": self.h_id, "stats": {"good_pps": None, "total_pps": None}})
         self.disco_info = disco_info
         self.broadcast_address = broadcast_address
         self.exitFlag = False
         self.restartFlag = False
 
+    async def createClient(self, loop):
+        transport, protocol = await loop.create_datagram_endpoint(
+            lambda: HiQnetUDPListenerProtocol(self.name, self.h_id, self.server_ip,
+                self.hiqnet_port, self.resp_queue.sync_q, self.health_queue, self.stats_queue,
+                self.disco_info, self.broadcast_address, loop),
+            local_addr=(self.bind_ip, self.hiqnet_port))
+        n = 0
+        while not self.exitFlag and not self.restartFlag:
+            await asyncio.sleep(1)
+            if protocol.dead: # failed too many tests
+                break
+        transport.close()
+        # cancel tasks
+        protocol.end_connection()
+        for task in [protocol.discovery_task, protocol.udp_test_task, protocol.stats_task]:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
     def run(self):
         print(self.name, "started", flush=True)
         while not self.exitFlag:
             self.restartFlag = False
-            s = None
-            test_socket = None
-
-            udp_test_uuid = None
-            failed_tests = 0
-            last_test = 0
-            last_disco = 0
-            seq_num = 0
-            disco_info_msg = DiscoInfo(self.disco_info, is_query=False, header=HiQnetHeader(HiQnetAddress.broadcast()))
-
             try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                try:
-                    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-                except AttributeError:
-                    pass # Some systems don't support SO_REUSEPORT
-                s.bind((self.bind_ip, self.hiqnet_port))
-                s.settimeout(1)
-                test_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                test_socket.settimeout(1)
-                self.health_queue.sync_q.put({"id": self.h_id, "status": True})
-
-                seq_cache = {}
-
-                while not self.exitFlag and not self.restartFlag:
-                    # send test packet
-                    if time.time() - last_test > UDP_TEST_INTERVAL:
-                        last_test = time.time()
-                        if udp_test_uuid is None:
-                            if failed_tests != 0:
-                                self.health_queue.sync_q.put({"id": self.h_id, "status": True}) # update status
-                            failed_tests = 0
-                        else:
-                            print("UDP Test Packet Failed")
-                            if failed_tests == 0:
-                                self.health_queue.sync_q.put({"id": self.h_id, "status": False}) # update status
-                            failed_tests += 1
-                            if failed_tests >= UDP_MAX_FAIL_THRESHOLD:
-                                raise Exception(f"Failed {UDP_MAX_FAIL_THRESHOLD} Consecutive UDP Test Packets")
-                        udp_test_uuid = str(uuid.uuid4()).encode()
-                        test_socket.sendto(udp_test_uuid, (self.server_ip, self.hiqnet_port))
-                    
-                    # send discovery info broadcast
-                    if time.time() - last_disco > UDP_DISCOVERY_BROADCAST_INTERVAL:
-                        last_disco = time.time()
-                        seq_num += 1
-                        test_socket.sendto(disco_info_msg.encode(seq_num), (self.broadcast_address, self.hiqnet_port))
-
-                    # receive data
-                    try:
-                        data = s.recv(RX_MSG_SIZE)
-                    except (TimeoutError, socket.timeout):
-                        continue
-
-                    if not data: # socket closed??
-                        break
-
-                    # check for test packet
-                    if udp_test_uuid and data == udp_test_uuid:
-                        udp_test_uuid = None
-                        continue
-                    
-                    msgs = decode_message(data)
-                    for msg in msgs:
-                        if type(msg) == DecodeFailed:
-                            print(self.name, "Decode Error:", msg)
-                            continue
-                        if type(msg) == IncorrectDestination:
-                            print(self.name, "Incorrect Destination:", msg)
-                            continue
-
-                        if type(msg) in (MultiObjectParamSet, MultiParamSet, ParamSetPercent):
-                            for p in Packet.from_msg(msg):
-                                if type(p) == UnsupportedMessage or type(p) == DecodeFailed:
-                                    print(self.name, "Error decoding packet:", p)
-                                    continue
-
-                                seq_cache_key = (
-                                    p.message_type,
-                                    p.node,
-                                    p.v_device,
-                                    p.obj_id,
-                                    p.param_id
-                                )
-
-                                t = time.time()
-                                if seq_cache_key in seq_cache:
-                                    old_time, old_seq_num = seq_cache[seq_cache_key]
-
-                                    # ensure sequence number is spaced enough apart
-                                    # or has timed out
-                                    if (t - old_time < SEQ_NUM_TIMEOUT and
-                                            msg.header.sequence_number < old_seq_num and
-                                            old_seq_num - msg.header.sequence_number < SEQ_NUM_MIN_DIST):
-                                        
-                                        print(self.name, "Out of order sequence from", msg.header.source_address)
-                                        continue
-                                
-                                # add to sequence number cache
-                                seq_cache[seq_cache_key] = (t, msg.header.sequence_number)
-
-                                if self.resp_queue.sync_q.closed:
-                                    self.end_connection()
-                                    return
-                                if self.resp_queue.sync_q.full():
-                                    self.resp_queue.sync_q.get() # remove oldest if queue full
-                                self.resp_queue.sync_q.put(p.to_json())
-                
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                client_task = loop.create_task(self.createClient(loop))
+                loop.run_until_complete(client_task)
+                loop.stop()
+                loop.close()
             except Exception as ex:
                 print(self.name, "Error:", ex, flush=True)
-            finally:
-                self.health_queue.sync_q.put({"id": self.h_id, "status": False})
-                if s:
-                    try:
-                        s.close()
-                    except:
-                        pass
-                if test_socket:
-                    try:
-                        test_socket.close()
-                    except:
-                        pass
-
+            self.health_queue.sync_q.put({"id": self.h_id, "status": False})
+            self.stats_queue.sync_q.put({"id": self.h_id, "stats": {"good_pps": None, "total_pps": None}})
             if not self.exitFlag:
                 print(self.name, "HiQnet UDP listener thread stopped, Restarting in 5 seconds", flush=True)
-                for i in range(5):
+                for _ in range(5):
                     if self.exitFlag:
                         break
                     time.sleep(1)

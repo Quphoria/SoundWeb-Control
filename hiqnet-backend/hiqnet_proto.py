@@ -108,12 +108,12 @@ class HiQnetFlags:
         flags = int.from_bytes(data, "big")
         return cls(
             session_id = (flags & 0x0100) != 0,
-            multi_part = (flags & 0x0100) != 0,
-            guaranteed = (flags & 0x0100) != 0,
-            error_header = (flags & 0x0100) != 0,
-            information = (flags & 0x0100) != 0,
-            acknowledgement = (flags & 0x0100) != 0,
-            req_acknowledgement = (flags & 0x0100) != 0
+            multi_part = (flags & 0x0040) != 0,
+            guaranteed = (flags & 0x0020) != 0,
+            error_header = (flags & 0x0008) != 0,
+            information = (flags & 0x0004) != 0,
+            acknowledgement = (flags & 0x0002) != 0,
+            req_acknowledgement = (flags & 0x0001) != 0
         )
     
     @staticmethod

@@ -3,7 +3,7 @@ import Button from 'react-bootstrap/Button'
 import { Alert, FormCheck } from 'react-bootstrap';
 
 function BackendDebugDialog(props) {
-  const { state, setState, connected, debug, setDebug, reconnectCallback } = props;
+  const { state, setState, connected, debug, stats, setDebug, reconnectCallback } = props;
 
   const handleClose = () => setState({show: false});
 
@@ -30,6 +30,14 @@ function BackendDebugDialog(props) {
         <br />
         <p>Pressing reconnect will trigger all HiQnet connections to get restarted (this takes about 10 seconds)</p>
         <Button variant="danger" disabled={!connected} onClick={reconnectCallback}>Reconnect</Button>
+        <br />
+        <br />
+        <h5>Stats</h5>
+        <div class="border rounded p-2" style={{maxHeight: "16em", overflowY: "scroll"}}>
+          <pre><code>
+            {JSON.stringify(stats, null, 4)}
+          </code></pre>
+        </div>
       </Modal.Body>
     
       <Modal.Footer>

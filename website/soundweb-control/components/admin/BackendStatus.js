@@ -10,7 +10,7 @@ class BackendStatus extends React.Component {
     if (this.props.setRestartCallback) {
       this.props.setRestartCallback({callback: (() => {this.restartBackend()}).bind(this)});
     }
-    this.state = {connected: false, nodes: {}, version: "Unknown", debug: false};
+    this.state = {connected: false, nodes: {}, version: "Unknown", debug: false, stats: {}};
   }
 
   handleData(msg) {
@@ -27,6 +27,9 @@ class BackendStatus extends React.Component {
         break;
       case "support":
         this.props.setSupportInformation && this.props.setSupportInformation(data);
+        break;
+      case "stats":
+        this.setState({stats: data});
         break;
     }
   }
@@ -45,12 +48,20 @@ class BackendStatus extends React.Component {
     }
   }
 
+  getStatus() {
+    if (this.state.connected) {
+      this.websocket.sendMessage("status"); // Get status
+      this.websocket.sendMessage("stats"); // Get stats
+    }
+  }
+
   websocketConnected() {
     console.log("Connected");
     this.websocket.sendMessage("status"); // Get status
     this.websocket.sendMessage("version"); // Get version
     this.websocket.sendMessage("debug"); // Get debug
     this.websocket.sendMessage("support"); // Get support
+    this.websocket.sendMessage("stats"); // Get stats
   }
 
   setDebug(enabled) {
@@ -90,7 +101,7 @@ class BackendStatus extends React.Component {
 
   componentDidMount() {
     this.setupWebsocket();
-    this.timer = setInterval(() => this.websocket.sendMessage("status"), 10000); // Refresh status every 10 seconds
+    this.timer = setInterval(this.getStatus.bind(this), 2000); // Refresh status & stats every 2 seconds
   }
 
   componentWillUnmount() {
@@ -160,6 +171,7 @@ class BackendStatus extends React.Component {
           setState={this.props.setBackendDebugModalState}
           connected={this.state.connected}
           debug={this.state.debug}
+          stats={this.state.stats}
           setDebug={this.setDebug.bind(this)}
           reconnectCallback={this.reconnect.bind(this)} />
       </div>
