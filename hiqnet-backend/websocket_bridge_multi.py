@@ -269,11 +269,11 @@ async def resp_broadcast(node: str):
                         if t - pc_param_cache[msg["parameter"]][0] < param_rebroadcast_time:
                             continue
                     pc_param_cache[msg["parameter"]] = (t, data)
-        if config["hiqnet_debug"]:
-            print(f"HiQnet RX [{node}]:", msg, flush=True)
-        SEND_LIST = filter(partial(should_send, msg=msg), WEBSOCKET_LIST)
-        if SEND_LIST:
-            ws_server.send_message_to_list(SEND_LIST, data)
+            if config["hiqnet_debug"]:
+                print(f"HiQnet RX [{node}]:", msg, flush=True)
+            SEND_LIST = filter(partial(should_send, msg=msg), WEBSOCKET_LIST)
+            if SEND_LIST:
+                ws_server.send_message_to_list(SEND_LIST, data)
 
 def get_packet_node_handler(p: Packet) -> str:
     global config, nodes
