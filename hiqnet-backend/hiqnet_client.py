@@ -437,7 +437,7 @@ class HiQnetUDPListenerThread(threading.Thread):
     async def createClient(self, loop):
         transport, protocol = await loop.create_datagram_endpoint(
             lambda: HiQnetUDPListenerProtocol(self.name, self.h_id, self.server_ip,
-                self.hiqnet_port, self.resp_queue.sync_q, self.health_queue, self.stats_queue,
+                self.hiqnet_port, self.resp_queue, self.health_queue, self.stats_queue,
                 self.disco_info, self.broadcast_address, loop),
             local_addr=(self.bind_ip, self.hiqnet_port))
         n = 0
