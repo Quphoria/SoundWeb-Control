@@ -50,7 +50,7 @@ class WebSocket {
       this.sendMessage(auth_token);
 
       if (typeof this.props.onOpen === 'function') this.props.onOpen();
-      setInterval(this.testInterval.bind(this), 10000) // Check websocket every 10 seconds
+      this.ws_test = setInterval(this.testInterval.bind(this), 10000); // Check websocket every 10 seconds
     };
 
     websocket.onerror = e => {
