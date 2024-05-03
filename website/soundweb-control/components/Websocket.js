@@ -22,6 +22,7 @@ class WebSocket {
 
   testInterval() {
     if (!this.test_ok) {
+      this.logging('Websocket ping test failed');
       this.ws.close(3000, "Ping test failed");
     } else if (this.ws) {
       this.test_ok = false;
