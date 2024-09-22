@@ -522,8 +522,14 @@ def update_connected_users():
     users = []
     with WS_DATA_LOCK:
         for address, (user_data, user_options, user_subs) in WS_USER_DATA.items():
+            formatted_address = str(address)
+            try:
+                formatted_address = f"{address[0]}:{address[1]}"
+            except:
+                pass
+
             users.append({
-                "address": str(address),
+                "address": formatted_address,
                 "username": user_data.get("username", None),
                 "admin": user_data.get("admin", False),
                 "options": user_options,
