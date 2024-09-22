@@ -7,6 +7,11 @@ function BackendDebugDialog(props) {
 
   const handleClose = () => setState({show: false});
 
+  const copyStats = () => {
+    navigator.clipboard.writeText(JSON.stringify(stats, null, 4));
+    alert("Copied");
+  };
+
   return (<Modal show={state.show} onHide={handleClose} className="text-dark" size="lg">
     <Modal.Dialog style={{margin: 0}} size="lg">
       <Modal.Header closeButton>
@@ -32,7 +37,7 @@ function BackendDebugDialog(props) {
         <Button variant="danger" disabled={!connected} onClick={reconnectCallback}>Reconnect</Button>
         <br />
         <br />
-        <h5>Stats</h5>
+        <h5>Stats <a href="javascript:void(0)" onClick={copyStats} className="link-secondary"><i class="bi bi-copy" style={{fontSize: "0.8em"}}/></a></h5>
         <div class="border rounded p-2" style={{maxHeight: "16em", overflowY: "scroll"}}>
           <pre><code>
             {JSON.stringify(stats, null, 4)}
