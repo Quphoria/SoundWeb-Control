@@ -484,7 +484,7 @@ class WebSocketHandler(StreamRequestHandler):
 
         try:
             assert headers['upgrade'].lower() == 'websocket'
-        except AssertionError:
+        except (AssertionError, KeyError):
             self.keep_alive = False
             return
 
