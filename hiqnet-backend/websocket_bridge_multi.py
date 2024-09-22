@@ -356,6 +356,8 @@ def ws_on_data_receive(client, server, message):
                 WEBSOCKET_LIST.append(client)
         # send __test__ to acknowledge websocket auth
         server.send_message(client, "__test__")
+        # update users stats
+        update_connected_users()
         # if not user_options.get("status", False):
         #     # we don't need to send the entire param_cache as the values will get sent when the client subscribes to them
         #     for p in param_cache.values():
@@ -471,6 +473,7 @@ def ws_on_connection_close(client, server):
                     client_unsubscribe(param_str, False, addr)
                 for param_str in user_subs[1]:
                     client_unsubscribe(param_str, True, addr)
+    update_connected_users()
 
 health_check_queue = None
 stats_queue = None
@@ -510,6 +513,27 @@ async def stats_check():
         # Get a "work item" out of the queue.
         stat = await stats_queue.async_q.get()
         stats[stat["id"]] = stat["stats"]
+
+def update_connected_users():
+    global stats_queue, WS_USER_DATA
+    if stats_queue is None:
+        return
+    
+    users = []
+    with WS_DATA_LOCK:
+        for address, (user_data, user_options, user_subs) in WS_USER_DATA.items():
+            users.append({
+                "address": address,
+                "username": user_data.get("username", None),
+                "admin": user_data.get("admin", False),
+                "options": user_options,
+                # "subs": user_subs,
+            })
+
+    stats_queue.sync_q.put({
+        "id": "users",
+        "stat": users
+    })
 
 async def unsubscribe_delay_task():
     global RUN_SERVER

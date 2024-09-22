@@ -11,7 +11,8 @@ function setCORSHeaders(req, res) {
   if (!req.headers.origin) return;
 
   if (!config.allowedSSOOrigins.includes(req.headers.origin)) {
-    console.log(`SSO CORS Origin Blocked: ${req.headers.origin}`);
+    // Only bother if origin != host (browser doesn't needs cors headers if they match)
+    if (req.headers.origin !== req.headers.host) console.log(`SSO CORS Origin Blocked: ${req.headers.origin}`);
     return;
   };
 
