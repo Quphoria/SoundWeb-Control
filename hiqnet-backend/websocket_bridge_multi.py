@@ -532,7 +532,7 @@ def update_connected_users():
 
     stats_queue.sync_q.put({
         "id": "users",
-        "stat": users
+        "stats": users
     })
 
 async def unsubscribe_delay_task():
