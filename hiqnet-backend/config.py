@@ -18,6 +18,8 @@ def default_config() -> Dict[str, Any]:
         "unsubscribe_delay_s": 300,
         "support_name": "Example",
         "support_email": "example@example.com",
+        "proxy_ip_header": None,
+        "proxy_port_header": None,
     }
 
 def check_list_type(l: list, v_type) -> bool:
@@ -69,6 +71,8 @@ config_tests = {
     "unsubscribe_delay_s": lambda x: check_range(x, 0, 86400),
     "support_name": lambda x: isinstance(x, str),
     "support_email": lambda x: isinstance(x, str),
+    "proxy_ip_header": lambda x: x is None or isinstance(x, str),
+    "proxy_port_header": lambda x: x is None or isinstance(x, str),
 }
 
 def load_config(config_filename: str = "config.json", disable_save = False) -> dict:

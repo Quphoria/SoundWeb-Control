@@ -10,6 +10,7 @@ import logging
 from socket import error as SocketError
 import errno
 import threading
+import warnings
 from socketserver import ThreadingMixIn, TCPServer, StreamRequestHandler
 
 from websocket_server.thread import WebsocketServerThread
@@ -125,7 +126,7 @@ class WebsocketServer(ThreadingMixIn, TCPServer, API):
     allow_reuse_address = True
     daemon_threads = True  # comment to keep threads alive until finished
 
-    def __init__(self, host='127.0.0.1', port=0, loglevel=logging.WARNING, key=None, cert=None):
+    def __init__(self, host='127.0.0.1', port=0, loglevel=logging.WARNING, key=None, cert=None, proxy_ip_header=None, proxy_port_header=None):
         logger.setLevel(loglevel)
         TCPServer.__init__(self, (host, port), WebSocketHandler)
         self.host = host
@@ -133,6 +134,14 @@ class WebsocketServer(ThreadingMixIn, TCPServer, API):
 
         self.key = key
         self.cert = cert
+        # Check both are either set, or not set
+        if bool(proxy_ip_header) != bool(proxy_port_header):
+            logger.warning("Remote address from proxy headers requires both proxy_ip_header and proxy_port_header to be set")
+            self.proxy_ip_header = None
+            self.proxy_port_header = None
+        else:
+            self.proxy_ip_header = proxy_ip_header.lower()
+            self.proxy_port_header = proxy_port_header.lower()
 
         self.clients = []
         self.id_counter = 0
@@ -169,7 +178,7 @@ class WebsocketServer(ThreadingMixIn, TCPServer, API):
     def _pong_received_(self, handler, msg):
         pass
 
-    def _new_client_(self, handler):
+    def _new_client_(self, handler, proxy_forwarded_address=None):
         if self._deny_clients:
             status = self._deny_clients["status"]
             reason = self._deny_clients["reason"]
@@ -178,10 +187,12 @@ class WebsocketServer(ThreadingMixIn, TCPServer, API):
             return
 
         self.id_counter += 1
+        # Use proxy address if provided
+        address = proxy_forwarded_address if proxy_forwarded_address else handler.client_address
         client = {
             'id': self.id_counter,
             'handler': handler,
-            'address': handler.client_address
+            'address': address
         }
         self.clients.append(client)
         self.new_client(client, self)
@@ -309,7 +320,7 @@ class WebsocketServer(ThreadingMixIn, TCPServer, API):
 
 class WebSocketHandler(StreamRequestHandler):
 
-    def __init__(self, socket, addr, server):
+    def __init__(self, socket, addr, server: WebsocketServer):
         self.server = server
         assert not hasattr(self, "_send_lock"), "_send_lock already exists"
         self._send_lock = threading.Lock()
@@ -494,12 +505,21 @@ class WebSocketHandler(StreamRequestHandler):
             logger.warning("Client tried to connect but was missing a key")
             self.keep_alive = False
             return
+        
+        remote_address = None
+        if self.server.proxy_ip_header:
+            try:
+                ip = headers[self.server.proxy_ip_header]
+                port = int(headers[self.server.proxy_port_header])
+                remote_address = (ip, port)
+            except (KeyError, ValueError):
+                logger.warning("Invalid/Missing proxy ip/port headers, socket remote address will be used")
 
         response = self.make_handshake_response(key)
         with self._send_lock:
             self.handshake_done = self.request.send(response.encode())
         self.valid_client = True
-        self.server._new_client_(self)
+        self.server._new_client_(self, proxy_forwarded_address=remote_address)
 
     @classmethod
     def make_handshake_response(cls, key):

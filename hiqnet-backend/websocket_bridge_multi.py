@@ -662,7 +662,7 @@ async def main():
         asyncio.create_task(resp_broadcast(node))
     asyncio.create_task(resp_broadcast(UDP_NODE_ID))
 
-    ws_server = WebsocketServer(host="0.0.0.0", port=config["websocket_port"])
+    ws_server = WebsocketServer(host="0.0.0.0", port=config["websocket_port"], proxy_ip_header=config['proxy_ip_header'], proxy_port_header=config['proxy_port_header'])
     ws_server.set_fn_new_client(ws_on_connection_open)
     ws_server.set_fn_client_left(ws_on_connection_close)
     ws_server.set_fn_message_received(ws_on_data_receive)
