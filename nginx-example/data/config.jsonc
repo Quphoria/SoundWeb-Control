@@ -1,0 +1,15 @@
+{
+  // This must be kept secret and be at least 32 characters long
+  // This is used to encrypt session cookies
+  // Generate a 100 character password here: https://1password.com/password-generator/
+  "sessionPassword": "SESSION_PASSWORD_1337",
+  // This is the address and port of the soundweb websocket bridge
+  // You can use {HOST} to get the current hostname used to connect to the webserver
+  "soundwebBridgeWebsocket": "wss://{HOST}/ws",
+  // Enable this if ssl is being used (don't enable if http is being used)
+  "useSSL": true,
+  // Auth Token Secret, generate another 100 character password
+  "authTokenSecret": "AUTH_TOKEN_SECRET_1234",
+  // SSO Allowed Origin URLs list (for CORS), e.g. ["https://example.com"]
+  "allowedSSOOrigins": []
+}

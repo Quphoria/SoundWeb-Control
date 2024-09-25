@@ -1,0 +1,23 @@
+{
+    "authTokenSecret": "AUTH_TOKEN_SECRET_1234",
+    "hiqnet_debug": false,
+    "node_names": {
+        "0x1": "Example"
+    },
+    "nodes": {
+        "0x1": "192.168.1.21"
+    },
+    "proxy_ip_header": "X-Real-IP",
+    "proxy_port_header": "X-Real-Port",
+    "server_gateway": "192.168.1.1",
+    "server_ip_address": "192.168.1.20",
+    "server_mac_address": "00:00:00:00:00:00",
+    "server_node_address": "0xfb00",
+    "server_subnet_mask": "255.255.255.0",
+    "subscription_debug": false,
+    "subscription_rate_ms": 200,
+    "support_email": "example@example.com",
+    "support_name": "Example",
+    "unsubscribe_delay_s": 300,
+    "websocket_port": 8765
+}
