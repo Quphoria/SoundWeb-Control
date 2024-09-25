@@ -134,13 +134,13 @@ class WebsocketServer(ThreadingMixIn, TCPServer, API):
 
         self.key = key
         self.cert = cert
-        
+
         self.proxy_ip_header = None
-        self.proxy_port_header
+        self.proxy_port_header = None
         # Check both are either set, or not set
         if bool(proxy_ip_header) != bool(proxy_port_header):
             logger.warning("Remote address from proxy headers requires both proxy_ip_header and proxy_port_header to be set")
-        elif self.proxy_ip_header and self.proxy_port_header:
+        elif proxy_ip_header and proxy_port_header:
             self.proxy_ip_header = proxy_ip_header.lower()
             self.proxy_port_header = proxy_port_header.lower()
 
