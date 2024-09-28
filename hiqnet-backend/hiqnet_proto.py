@@ -261,6 +261,8 @@ def decode_message(data) -> List[HiQnetMessage]:
                     msgs.append(StartKeepAlive.decode(message, header))
                 else:
                     msgs.append(msg)
+            elif header.message_id == MessageID.GetNetworkInfo:
+                msgs.append(GetNetworkInfo.decode(message, header))
             else:
                 raise DecodeFailed(f"Message ID {header.message_id} not implemented")
         except DecodeFailed as ex: 
@@ -458,7 +460,7 @@ class DiscoInfo(HiQnetMessage):
         self.info = info
     
     def is_query(self):
-        return not self.flags.information
+        return not self.header.flags.information
 
     def get_payload(self):
         return self.info.encode()
@@ -471,6 +473,42 @@ class DiscoInfo(HiQnetMessage):
         info = DiscoveryInformation.decode(data)
         is_query = not header.flags.information
         return cls(info, is_query, header)
+
+class GetNetworkInfo(HiQnetMessage):
+    def __init__(self, serial: bytes, network_id: int, network_info: NetworkInfo, is_query=False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.header.message_id = MessageID.DiscoInfo
+        self.header.flags.information = not is_query
+        self.serial = serial
+        self.network_id = network_id if self.network_id is not None else 1
+        self.network_info = network_info
+    
+    def is_query(self):
+        return not self.header.flags.information
+
+    def get_payload(self):
+        data = len(self.serial).to_bytes(2, "big")
+        data += self.serial
+        data += self.network_id.to_bytes(1, "big")
+        data += self.network_info.encode()
+        return data
+
+    def __str__(self):
+        if self.header.flags.information:
+            return f"GetNetworkInfo SER={self.serial.hex()}"
+        return f"GetNetworkInfo SER={self.serial.hex()} NET={self.network_id} {self.network_info}"
+
+    @classmethod
+    def decode(cls, data: bytes, header: HiQnetHeader):
+        is_query = not header.flags.information
+        serial_length = int.from_bytes(data[:2], "big")
+        serial = data[2:2+serial_length] # 16 bytes
+        network_id = 1
+        network_info = None
+        if not is_query:
+            network_id = data[2+serial_length]
+            network_info = NetworkInfo.decode(data[3+serial_length:])
+        return cls(serial, network_id, network_info, is_query, header)
 
 class HelloQuery(HiQnetMessage):
     def __init__(self, session_number: int, flag_mask: int = HiQnetFlags.session_supported(), *args, **kwargs):

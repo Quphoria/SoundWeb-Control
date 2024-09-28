@@ -383,7 +383,7 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         self._ready.set()
 
     @staticmethod
-    def decode_handler(protocol):
+    def decode_handler(protocol: 'HiQnetUDPListenerProtocol'):
         name = protocol.name
         resp_queue = protocol.resp_queue
         seq_cache = {}
@@ -415,6 +415,22 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
 
                 if type(msg) == IncorrectDestination:
                     print(name, "Incorrect Destination:", msg, flush=True)
+                    continue
+
+                if type(msg) == GetNetworkInfo and msg.is_query:
+                    print(f"{msg.header.source_address.device} : {msg}", flush=True)
+                    dest = msg.header.source_address
+
+                    serial = protocol.disco_info.serial
+                    network_id = protocol.disco_info.network_id
+                    network_info = protocol.disco_info.network_info
+
+                    network_info_msg = GetNetworkInfo(serial, network_id, network_info, is_query=False, header=HiQnetHeader(dest))
+                    network_info_msg.header.flags.guaranteed = False
+                    try:
+                        protocol.transport.sendto(network_info_msg.encode(protocol.next_seq()), (protocol.broadcast_address, protocol.hiqnet_port))
+                    except UnsupportedMessage as ex:
+                        print(protocol.name, "Error Sending GetNetworkInfo Reply:", ex)
                     continue
 
                 if type(msg) in (MultiObjectParamSet, MultiParamSet, ParamSetPercent):
