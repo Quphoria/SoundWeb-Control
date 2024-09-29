@@ -4,12 +4,14 @@ import html
 __location__ = os.path.realpath(
     os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
-def build_jsx(panel, pages, output_dir):
+def build_jsx(panel, pages, output_dir, has_errors=False):
     template_filename = "PanelContents.js.template"
     with open(os.path.join(__location__, template_filename), encoding="UTF-8") as f:
         panel_template = f.read()
     panel_contents = panel_template.replace("[TAB_COUNT]", str(pages))
-    panel_contents = panel_contents.replace("[PANEL_JSX]", str(panel))
+    panel_jsx = str(panel)
+    panel_contents = panel_template.replace("[HAS_PANEL_ERRORS]", "true" if has_errors else "false")
+    panel_contents = panel_contents.replace("[PANEL_JSX]", panel_jsx)
     
     with open(output_dir + "/PanelContents.js", "w", encoding="UTF-8") as f:
         f.write(panel_contents)

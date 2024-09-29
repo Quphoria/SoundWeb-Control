@@ -588,7 +588,7 @@ control_types = {
 }
 
 def parse_control(control, *, show_broken_controls=False, **kwargs):
-    global pages
+    global pages, has_error_boxes
     ctype = control.attrib.get("Type", None)
     try:
         assert ctype in control_types, "Unknown control type: " + str(ctype)
@@ -604,14 +604,17 @@ def parse_control(control, *, show_broken_controls=False, **kwargs):
         if not show_broken_controls:
             raise ex
         print("Error rendering " + str(ctype) + ": " + str(ex))
+        has_error_boxes = True
         return ErrorBox.parse(control, show_broken_controls=show_broken_controls, **kwargs)
 
 
 def parse_root_control(_images, control, *, depth=0, tabsize_=4, show_broken_controls=False):
-    global images, pages, tabsize
+    global images, pages, tabsize, has_error_boxes
     images = _images
     tabsize = tabsize_
-    return Panel.parse(control, depth=depth, tab_depth=0, tab=None, show_broken_controls=show_broken_controls)
+    has_error_boxes = False
+    panel = Panel.parse(control, depth=depth, tab_depth=0, tab=None, show_broken_controls=show_broken_controls)
+    return panel, has_error_boxes
 
 def total_pages():
     global pages

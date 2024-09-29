@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Modal from 'react-bootstrap/Modal'
 import Button from 'react-bootstrap/Button'
 import Form from 'react-bootstrap/Form'
+import FormCheck from 'react-bootstrap/FormCheck';
 
-import { tab_count } from '../../PanelContents';
-import { api_admin_restart_url, api_admin_panel_upload_url, api_admin_panel_restore_url, home_url } from '../../lib/siteUrls';
+import { tab_count, has_panel_errors } from '../../PanelContents';
+import { api_admin_restart_url, api_admin_panel_upload_url, api_admin_panel_restore_url, api_admin_panel_errors_url, home_url } from '../../lib/siteUrls';
 
 const toBase64 = file => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -16,6 +17,7 @@ const toBase64 = file => new Promise((resolve, reject) => {
 function UploadPanelDialog(props) {
   const { state, setState } = props;
   const [hasFile, setHasFile] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
 
   const fileRef = useRef(null);
 
@@ -113,6 +115,48 @@ function UploadPanelDialog(props) {
       });
     })
   }
+  const handleShowErrors = async (show) => {
+    if (!confirm("Are you sure you want to show/hide errors on the panel?\nTHIS WILL CAUSE THE SERVER TO RESTART!")) {
+      handleClose();
+      return false;
+    }
+    return await fetch(api_admin_panel_errors_url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({show_panel_errors: show})
+    })
+    .then(r => {
+      if (r.ok) {
+        handleClose();
+        alert("Server restarting due to panel errors setting change");
+        window.location = home_url;
+        return true;
+      };
+
+      r.text().then(msg => {
+        console.log(msg);
+        setState({...state, errorMessage: msg});
+      });
+    });
+  }
+
+  // get show panel errors state
+  useEffect(async () => {
+    const show_panel_errors = await fetch(api_admin_panel_errors_url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(r => {
+      if (r.ok) {
+        return r.json().then(({show_panel_errors}) => show_panel_errors);
+      }
+    });
+    setShowErrors(show_panel_errors === true);
+  }, [])
 
   const fileChange = () => {
     setHasFile(fileRef.current?.files[0] !== undefined);
@@ -125,7 +169,17 @@ function UploadPanelDialog(props) {
       </Modal.Header>
     
       <Modal.Body>
-        <Button variant="primary" onClick={handleRestore} hidden={tab_count >= 0} style={{marginBottom: "1rem"}}>Restore Last Working Panel File</Button>
+        <Button variant="primary" onClick={handleRestore} hidden={!(has_panel_errors || (tab_count < 0))} style={{marginBottom: "1rem"}}>Restore Last Working Panel File</Button>
+        <FormCheck 
+          type="switch"
+          label="Show panel controls with errors"
+          hidden={has_panel_errors}
+          checked={showErrors}
+          onChange={async () => {
+            const r = await handleShowErrors(!showErrors);
+            if (r === true) setShowErrors(!showErrors);
+          }}
+        />
         <form>
           <Form.Group className="mb-3">
             <Form.Label>New .panel file</Form.Label>

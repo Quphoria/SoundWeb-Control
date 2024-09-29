@@ -1,6 +1,7 @@
 import { Padding } from "./styles";
 
 export const tab_count = -1;
+export const has_panel_errors = true;
 
 function PanelContents(props) {
   const error_title = String.raw`[ERROR_TITLE]`;

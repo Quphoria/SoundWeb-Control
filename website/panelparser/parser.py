@@ -44,7 +44,7 @@ def parse_images(ImageLibrarian):
             print("Written image:", image_path)
             images[Handle] = "images/" + image_name
 
-def parse_panel(filename: str):
+def parse_panel(filename: str, show_broken_controls=False):
     tree = ET.parse(filename)
     Panels = tree.getroot()
     assert Panels.attrib.get("Version", None) == "Audio Architect", "File is not an Audio Architect panel"
@@ -55,28 +55,22 @@ def parse_panel(filename: str):
     os.makedirs(output_dir + "/images", exist_ok=True)
     parse_images(Panels.find("ImageLibrarian"))
     # parse panel
-
-    # TODO:
-    # Implement show_broken_controls
-    #  - Some config option for it in web interface??
-    #  - Maybe it appears when you have bugs in panel
-    #  - and gets reset to False when you upload new file
-    
-    root_control = parse_root_control(images, Panel, depth=3, tabsize_=2, show_broken_controls=True)
+    root_control, has_errors = parse_root_control(images, Panel, depth=3, tabsize_=2, show_broken_controls=show_broken_controls)
     pages = total_pages()
     # with open("panel.xml", "w", encoding="UTF-8") as f:
     #     f.write(str(root_control))
-    build_jsx(root_control, pages, output_dir)
+    build_jsx(root_control, pages, output_dir, has_errors)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Converts audioarchitect .panel files to JSX for react')
     parser.add_argument('file', help='The .panel file to open')
-    parser.add_argument('-output_dir', '-o', default="output", help="The output directory")
+    parser.add_argument('--output_dir', '-o', default="output", help="The output directory")
+    parser.add_argument('--show_errors', action="store_true", help="Generate panel with errors for broken controls instead of throwing an error page")
 
     args = parser.parse_args()
     output_dir = args.output_dir
     try:
-        parse_panel(args.file)
+        parse_panel(args.file, show_broken_controls=args.show_errors)
         print("Pages:", total_pages())
         shutil.copyfile(args.file, args.file + ".backup")
     except FileNotFoundError:

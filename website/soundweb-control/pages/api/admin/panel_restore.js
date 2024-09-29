@@ -4,13 +4,7 @@ import { withSessionRoute } from "../../../lib/withSession";
 import validSession from "../../../lib/validSession";
 
 const panel_path = ( process.env.DATA_DIR || "../../data/" ) + "App.panel";
-
-const saveFile = async (file) => {
-  const data = fs.readFileSync(file.path);
-  fs.writeFileSync(panel_path, data);
-  await fs.unlinkSync(file.path);
-  return;
-};
+const show_panel_errors_path = ( process.env.DATA_DIR || "../../data/" ) + "SHOW_PANEL_ERRORS";
 
 export default withSessionRoute(
   async function panelRestoreRoute(req, res) {
@@ -26,6 +20,8 @@ export default withSessionRoute(
           throw new Error("No Backup Exists");
         }
         fs.copyFileSync(panel_path + ".backup", panel_path);
+        // Clear show_panel_errors variable
+        if (fs.existsSync(show_panel_errors_path)) fs.rmSync(show_panel_errors_path);
         res.send("Ok");
         process.exit(0);
       } else {

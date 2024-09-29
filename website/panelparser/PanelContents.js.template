@@ -23,6 +23,7 @@ function getSubtab(subtab, depth) {
 }
 
 export const tab_count = [TAB_COUNT];
+export const has_panel_errors = [HAS_PANEL_ERRORS];
 
 function PanelContents(props) {
   const { selected_tab, pathname, setSubtab, subtab, hiddenTabs } = props;

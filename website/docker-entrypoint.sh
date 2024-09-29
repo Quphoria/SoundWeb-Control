@@ -28,7 +28,13 @@ do
         # exit 1
     fi
 
-    python3 panelparser/parser.py /data/App.panel -o soundweb-control
+    EXTRA_PARSER_ARGS=""
+    if [[ -f /data/SHOW_PANEL_ERRORS ]] ; then
+        echo "/data/SHOW_PANEL_ERRORS present, controls with errors will be generated instead throwing of an error page"
+        EXTRA_PARSER_ARGS="--show_errors"
+    fi
+
+    python3 panelparser/parser.py /data/App.panel /data/SHOW_PANEL_ERRORS -o soundweb-control $EXTRA_PARSER_ARGS
     if [[ $? -ne 0 ]] ; then
         exit 1
     fi

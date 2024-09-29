@@ -34,6 +34,7 @@ export const api_admin_password_url = `${api_admin}/password`;
 export const api_admin_restart_url = `${api_admin}/restart`;
 export const api_admin_panel_upload_url = `${api_admin}/panel_upload`;
 export const api_admin_panel_restore_url = `${api_admin}/panel_restore`;
+export const api_admin_panel_errors_url = `${api_admin}/panel_errors`;
 
 // Admin SSO Api
 
