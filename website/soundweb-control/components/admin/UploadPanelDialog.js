@@ -142,8 +142,7 @@ function UploadPanelDialog(props) {
     });
   }
 
-  // get show panel errors state
-  useEffect(async () => {
+  const loadShowPanelErrors = async () => {
     const show_panel_errors = await fetch(api_admin_panel_errors_url, {
       method: 'POST',
       headers: {
@@ -156,7 +155,10 @@ function UploadPanelDialog(props) {
       }
     });
     setShowErrors(show_panel_errors === true);
-  }, [])
+  } 
+
+  // get show panel errors state
+  useEffect(() => { loadShowPanelErrors() }, [])
 
   const fileChange = () => {
     setHasFile(fileRef.current?.files[0] !== undefined);
