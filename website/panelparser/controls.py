@@ -2,6 +2,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import List
 import html, json
+import traceback
 
 pages = 0
 tabsize = 2
@@ -604,6 +605,7 @@ def parse_control(control, *, show_broken_controls=False, **kwargs):
         if not show_broken_controls:
             raise ex
         print("Error rendering " + str(ctype) + ": " + str(ex))
+        print(traceback.format_exc())
         has_error_boxes = True
         return ErrorBox.parse(control, show_broken_controls=show_broken_controls, **kwargs)
 

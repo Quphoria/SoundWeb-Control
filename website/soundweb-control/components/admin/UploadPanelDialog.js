@@ -170,16 +170,17 @@ function UploadPanelDialog(props) {
     
       <Modal.Body>
         <Button variant="primary" onClick={handleRestore} hidden={!(has_panel_errors || (tab_count < 0))} style={{marginBottom: "1rem"}}>Restore Last Working Panel File</Button>
-        <FormCheck 
-          type="switch"
-          label="Show panel controls with errors"
-          hidden={has_panel_errors}
-          checked={showErrors}
-          onChange={async () => {
-            const r = await handleShowErrors(!showErrors);
-            if (r === true) setShowErrors(!showErrors);
-          }}
-        />
+        <div hidden={!has_panel_errors}>
+          <FormCheck 
+            type="switch"
+            label="Show panel controls with errors"
+            checked={showErrors}
+            onChange={async () => {
+              const r = await handleShowErrors(!showErrors);
+              if (r === true) setShowErrors(!showErrors);
+            }}
+          />
+        </div>
         <form>
           <Form.Group className="mb-3">
             <Form.Label>New .panel file</Form.Label>

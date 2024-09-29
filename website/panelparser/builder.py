@@ -9,9 +9,8 @@ def build_jsx(panel, pages, output_dir, has_errors=False):
     with open(os.path.join(__location__, template_filename), encoding="UTF-8") as f:
         panel_template = f.read()
     panel_contents = panel_template.replace("[TAB_COUNT]", str(pages))
-    panel_jsx = str(panel)
-    panel_contents = panel_template.replace("[HAS_PANEL_ERRORS]", "true" if has_errors else "false")
-    panel_contents = panel_contents.replace("[PANEL_JSX]", panel_jsx)
+    panel_contents = panel_contents.replace("[HAS_PANEL_ERRORS]", "true" if has_errors else "false")
+    panel_contents = panel_contents.replace("[PANEL_JSX]", str(panel))
     
     with open(output_dir + "/PanelContents.js", "w", encoding="UTF-8") as f:
         f.write(panel_contents)

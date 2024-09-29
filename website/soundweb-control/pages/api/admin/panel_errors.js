@@ -18,9 +18,11 @@ export default withSessionRoute(
         if (req.body.show_panel_errors === true) {
           fs.writeFileSync(show_panel_errors_path, "1");
           res.send({status: "ok"});
+          process.exit(0);
         } else if (req.body.show_panel_errors === false) {
           if (fs.existsSync(show_panel_errors_path)) fs.rmSync(show_panel_errors_path);
           res.send({status: "ok"});
+          process.exit(0);
         } else {
           res.send({status: "ok", show_panel_errors: fs.existsSync(show_panel_errors_path)});
         }
