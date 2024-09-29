@@ -628,19 +628,38 @@ class HiQnetTCPListenerProtocol(asyncio.Protocol):
         self.decode_thread = None
         self.reply_header = None
         self.send_keepalives = False
+        self.timeout_task = loop.create_task(self.check_timeout())
+        self.timeout_interval_ms = 15_000 # default to 15 seconds (times out after 32)
+        self.last_packet = 0
         self.keepalive_task = loop.create_task(self.keepalive())
         self.keepalive_interval_ms = self.disco_info.keep_alive_ms
+
+    async def check_timeout(self):
+        while self.loop.is_running():
+            if self.last_packet == 0:
+                await asyncio.sleep(1)
+                continue
+
+            dt = time.time() - self.last_packet
+            if dt > (2*self.timeout_interval_ms/1000 + 2):
+                # keepalive timeout reached, close connection
+                self.transport.close()
+                break
+
+            await asyncio.sleep(1)
+
 
     async def keepalive(self):
         while self.loop.is_running():
             if self.send_keepalives and self.reply_header:
-                disco_info_msg = DiscoInfo(self.disco_info, is_query=True, header=self.reply_header.copy())
-                # keepalive's aren't send guaranteed (observed on BLU-100)
-                disco_info_msg.header.flags.guaranteed = False
+                disco_info_msg = DiscoInfo(self.disco_info, header=self.reply_header.copy())
                 self.transport.write(disco_info_msg.encode(self.next_seq()))
-            await asyncio.sleep(self.keepalive_interval_ms)
+                await asyncio.sleep(self.keepalive_interval_ms / 1000)
+            else:
+                await asyncio.sleep(1)
 
     def end_connection(self):
+        self.timeout_task.cancel()
         self.keepalive_task.cancel()
         self.decode_queue.close()
         if self.decode_thread:
@@ -660,6 +679,9 @@ class HiQnetTCPListenerProtocol(asyncio.Protocol):
         self.decode_thread.start()
         
         self.transport = transport
+
+        # start waiting for timeout
+        self.last_packet = time.time()
 
         # Send DiscoInfo (to broadcast address, since we don't know the remote id)
         # Observed a BLU-100 doing this
@@ -693,6 +715,9 @@ class HiQnetTCPListenerProtocol(asyncio.Protocol):
             except DecodeFailed as ex:
                 print(name, "Decode Error:", ex, flush=True)
                 return
+            
+            if msgs:
+                protocol.last_packet = time.time()
             
             for msg in msgs:
                 if type(msg) == DecodeFailed:
@@ -733,6 +758,9 @@ class HiQnetTCPListenerProtocol(asyncio.Protocol):
                     #   Information: 0x4
                     #   Ack: 0x2
                     #   Req Ack: 0x1
+                    if not protocol.reply_header:
+                        protocol.reply_header = HiQnetHeader(msg.header.source_address)
+                    protocol.send_keepalives = True
 
                     protocol.reply_header.session_id = msg.session_number
                     hello_info_msg = HelloInfo(msg.session_number, 0x12f, protocol.reply_header.copy())
@@ -792,9 +820,10 @@ class HiQnetTCPListenerProtocol(asyncio.Protocol):
                         print(protocol.name, f"Error Sending GetAttributesReply to {protocol.peername}:", ex)
                     continue
 
-                # MessageID.ParameterSubscribeAll
+                if type(msg) == ParameterSubscribeAll:
+                    continue
 
-                print("TCP:", msg)
+                print("TCP Server MSG:", msg)
 
 class HiQnetTCPListenerThread(threading.Thread):
     def __init__(self, name: str, h_id: str, bind_ip: str, server_ip: str, hiqnet_port: int, health_check_queue: Queue, disco_info: DiscoveryInformation, version: str):

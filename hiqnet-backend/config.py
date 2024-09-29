@@ -49,6 +49,7 @@ def check_mac_address(s: str) -> bool:
 def check_node_address(s: str) -> bool:
     if not isinstance(s, str):
         return False
+    # Keep at 2 bytes, as generating serial number also uses
     node_addr_regex = r"^0[xX]([0-9a-fA-F]{1,4})$"
     return bool(re.match(node_addr_regex, s))
 

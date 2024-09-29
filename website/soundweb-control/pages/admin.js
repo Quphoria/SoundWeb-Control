@@ -88,6 +88,8 @@ const Admin = props => {
           fontSize: "0.8rem",
           cursor: "pointer"
         }}>
+        <a href="https://quphoria.co.uk"
+          style={{textDecoration: "underline", color: "var(--bs-primary)"}}>https://quphoria.co.uk</a> &nbsp;&nbsp;
         <a onClick={() => setSupportModalState({show: true})}
           style={{textDecoration: "underline", color: "var(--bs-info)"}}>Support</a> &nbsp;&nbsp;
         <a onClick={() => setSSOSettingsModalState({show: true})}

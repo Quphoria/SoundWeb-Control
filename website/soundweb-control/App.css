@@ -7,3 +7,21 @@
   url("https://db.onlinewebfonts.com/t/2442df04682466647c9b737e374dd1ef.ttf") format("truetype"), /* chrome firefox opera Safari, Android, iOS 4.2+*/
   url("https://db.onlinewebfonts.com/t/2442df04682466647c9b737e374dd1ef.svg#Microsoft Sans Serif") format("svg"); /* iOS 4.1- */
 }
+
+.error-blink {
+  opacity: 1;
+  animation: errorblink 2s linear infinite;
+}
+
+@keyframes errorblink {
+  0%  { opacity: 1; }
+  49% { opacity: 1; }
+  50% { opacity: 0; }
+  99% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.error-blink-svg {
+  stroke: red; 
+  stroke-width: 4;
+}

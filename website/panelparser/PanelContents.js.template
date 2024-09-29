@@ -13,6 +13,7 @@ import LED from "./components/LED"
 import Rectangle from "./components/Rectangle"
 import TabButton from "./components/TabButton"
 import TabContainer from "./components/TabContainer"
+import ErrorBox from "./components/ErrorBox"
 
 function getSubtab(subtab, depth) {
   if (subtab.length > depth) {

@@ -55,7 +55,14 @@ def parse_panel(filename: str):
     os.makedirs(output_dir + "/images", exist_ok=True)
     parse_images(Panels.find("ImageLibrarian"))
     # parse panel
-    root_control = parse_root_control(images, Panel, 3, 2)
+
+    # TODO:
+    # Implement show_broken_controls
+    #  - Some config option for it in web interface??
+    #  - Maybe it appears when you have bugs in panel
+    #  - and gets reset to False when you upload new file
+    
+    root_control = parse_root_control(images, Panel, depth=3, tabsize_=2, show_broken_controls=True)
     pages = total_pages()
     # with open("panel.xml", "w", encoding="UTF-8") as f:
     #     f.write(str(root_control))

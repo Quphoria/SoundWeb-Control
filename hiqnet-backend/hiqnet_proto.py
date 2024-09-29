@@ -321,6 +321,8 @@ def decode_message(data) -> List[HiQnetMessage]:
                     msgs.append(GetAttributesReply.decode(message, header))
                 else:
                     msgs.append(GetAttributes.decode(message, header))
+            elif header.message_id == MessageID.ParameterSubscribeAll:
+                msgs.append(ParameterSubscribeAll.decode(message, header))
             else:
                 raise DecodeFailed(f"Message ID {header.message_id} not implemented")
         except DecodeFailed as ex: 
@@ -967,6 +969,37 @@ class ParamSubscribePercent(HiQnetMessage):
     def decode(cls, data: bytes, header: HiQnetHeader):
         raise DecodeFailed("decode not implemented for ParamSubscribePercent")
     
+class ParameterSubscribeAll(HiQnetMessage):
+    # Subscription types:
+    # 0 - all
+    # 1 - non sensor
+    # 2 - sensor
+    def __init__(self, device: HiQnetAddress, sub_type: int = 0, sensor_rate: int = 50, sub_flags: int = 0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.header.message_id = MessageID.ParameterSubscribeAll
+        self.device = device
+        self.sub_type = sub_type
+        self.sensor_rate = sensor_rate
+        self.sub_flags = sub_flags
+
+    def get_payload(self):
+        data = self.device.encode()
+        data += self.sub_type.to_bytes(UBYTE, "big")
+        data += self.sensor_rate.to_bytes(UWORD, "big")
+        data += self.sub_flags.to_bytes(UWORD, "big")
+        return data
+    
+    def __str__(self):
+        return f"ParameterSubscribeAll DEV={self.device} TYPE={self.sub_type} RATE={self.sensor_rate} FLAGS=0x{self.sub_flags:x}"
+
+    @classmethod
+    def decode(cls, data: bytes, header: HiQnetHeader):
+        device = HiQnetAddress.decode(data[:6])
+        sub_type = data[6]
+        sensor_rate = int.from_bytes(data[7:9], "big")
+        sub_flags = int.from_bytes(data[9:11], "big")
+        return cls(device, sub_type, sensor_rate, sub_flags, header)
+
 class MessageType(Enum):
     SET = 0x88
     SUBSCRIBE = 0x89

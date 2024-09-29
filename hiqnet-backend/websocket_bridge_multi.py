@@ -15,8 +15,6 @@ token_time_range = 10 * 60 * 1000 # +-10 minutes
 
 HIQNET_PORT = 3804
 FAILSAFE_SHUTDOWN_TIME = 30 # safe shutdown aborted after 30 seconds
-# serial must be 16 bytes
-SERIAL_NUM = b"/quphoria.co.uk/"
 
 subscribed_params = {}
 
@@ -631,6 +629,8 @@ async def main():
         return
 
     MY_ADDRESS.device = int(config["server_node_address"], base=16)
+    # serial must be 16 bytes, 14 bytes for url, 2 bytes from device address (which is limited to 2 bytes in the config)
+    SERIAL_NUM = b"quphoria.co.uk" + MY_ADDRESS.device.to_bytes(2, "big")
     network_info = NetworkInfo(
         config["server_mac_address"],
         False, # dhcp not yet supported
