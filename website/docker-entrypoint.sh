@@ -34,7 +34,7 @@ do
         EXTRA_PARSER_ARGS="--show_errors"
     fi
 
-    python3 panelparser/parser.py /data/App.panel /data/SHOW_PANEL_ERRORS -o soundweb-control $EXTRA_PARSER_ARGS
+    python3 panelparser/parser.py /data/App.panel -o soundweb-control $EXTRA_PARSER_ARGS
     if [[ $? -ne 0 ]] ; then
         exit 1
     fi
