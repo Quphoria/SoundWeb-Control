@@ -1,5 +1,5 @@
 import asyncore, asyncio, threading, time, functools, socket, uuid
-from janus import Queue, SyncQueue, SyncQueueEmpty
+from janus import Queue, SyncQueue, SyncQueueEmpty, SyncQueueFull
 import janus
 import traceback as tb
 
@@ -317,33 +317,46 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
     async def udp_test(self):
         """Periodically test the UDP socket"""
         await self._ready.wait()
-        test_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            test_socket.settimeout(1)
-            failed_tests = -1
-            while self.loop.is_running():
-                if self.udp_test_uuid is None:
-                    if failed_tests != 0:
-                        await self.health_queue.async_q.put({"id": self.h_id, "status": True}) # update status
-                    failed_tests = 0
-                else:
-                    print("UDP Test Packet Failed", flush=True)
-                    self.test_rtt = None
-                    if failed_tests == 0:
-                        await self.health_queue.async_q.put({"id": self.h_id, "status": False}) # update status
-                    failed_tests += 1
-                    if failed_tests >= UDP_MAX_FAIL_THRESHOLD:
-                        self.dead = True
-                        raise Exception(f"Failed {UDP_MAX_FAIL_THRESHOLD} Consecutive UDP Test Packets")
-                self.udp_test_uuid = str(uuid.uuid4()).encode()
-                test_socket.sendto(self.udp_test_uuid, (self.server_ip, self.hiqnet_port))
-                self.test_st = time.time()
-                await asyncio.sleep(UDP_TEST_INTERVAL)
-        finally:
+        while not self.dead and self.loop.is_running():
+            test_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             try:
-                test_socket.close()
-            except:
-                pass
+                test_socket.settimeout(1)
+                failed_tests = -1
+                retry_health_update = False
+                while self.loop.is_running():
+                    if self.udp_test_uuid is None:
+                        if failed_tests != 0 or retry_health_update:
+                            retry_health_update = False
+                            try:
+                                self.health_queue.sync_q.put({"id": self.h_id, "status": True}, timeout=5) # update status
+                            except SyncQueueFull:
+                                retry_health_update = True
+                        failed_tests = 0
+                    else:
+                        print("UDP Test Packet Failed", flush=True)
+                        self.test_rtt = None
+                        if failed_tests == 0 or retry_health_update:
+                            retry_health_update = False
+                            try:
+                                self.health_queue.sync_q.put({"id": self.h_id, "status": False}, timeout=5) # update status
+                            except SyncQueueFull:
+                                retry_health_update = True
+                        failed_tests += 1
+                        if failed_tests >= UDP_MAX_FAIL_THRESHOLD:
+                            self.dead = True
+                            raise Exception(f"Failed {UDP_MAX_FAIL_THRESHOLD} Consecutive UDP Test Packets")
+                    self.udp_test_uuid = str(uuid.uuid4()).encode()
+                    test_socket.sendto(self.udp_test_uuid, (self.server_ip, self.hiqnet_port))
+                    self.test_st = time.time()
+                    await asyncio.sleep(UDP_TEST_INTERVAL)
+            except Exception as ex:
+                print("UDP Test Error:", ex)
+                raise ex
+            finally:
+                try:
+                    test_socket.close()
+                except:
+                    pass
 
     # We probably don't have to do this,
     # as we now respond to DiscoInfo messages asking for us (see 4.2.1 Searching for a Device)
