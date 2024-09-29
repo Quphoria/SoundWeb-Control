@@ -9,12 +9,14 @@ from typing import Optional, Dict, Set
 
 from websocket_server import WebsocketServer
 from hiqnet_proto import *
-from hiqnet_client import HiQnetThread, HiQnetUDPListenerThread
+from hiqnet_client import HiQnetThread, HiQnetUDPListenerThread, HiQnetTCPListenerThread
 
 token_time_range = 10 * 60 * 1000 # +-10 minutes
 
 HIQNET_PORT = 3804
 FAILSAFE_SHUTDOWN_TIME = 30 # safe shutdown aborted after 30 seconds
+# serial must be 16 bytes
+SERIAL_NUM = b"/quphoria.co.uk/"
 
 subscribed_params = {}
 
@@ -608,9 +610,11 @@ def test_udp_receive(bind_ip, hiqnet_port, dest_ip):
 
 
 hiqnet_udp_thread = None
+hiqnet_tcp_server_thread = None
 hiqnet_tcp_threads = {}
 broadcast_threads = {}
 UDP_NODE_ID = "UDP"
+TCP_NODE_ID = "TCP"
 async def main():
     global config, ws_server, msg_queues, resp_queues, bc_queues, hiqnet_udp_thread, hiqnet_tcp_threads, broadcast_threads, subscribed_params, health_check_queue, stats_queue, RUN_SERVER
     health_check_queue = Queue(50)
@@ -633,7 +637,7 @@ async def main():
         config["server_ip_address"],
         config["server_subnet_mask"],
         config["server_gateway"])
-    disco_info = DiscoveryInformation(network_info)
+    disco_info = DiscoveryInformation(network_info, serial=SERIAL_NUM)
 
     # use ipaddress module to calculate broadcast address
     net = ipaddress.IPv4Network(config["server_ip_address"] + '/' + config["server_subnet_mask"], False)
@@ -643,6 +647,7 @@ async def main():
         key: HiQnetThread(f"HiQnet {key} TCP Thread", get_node_alias(key), int(key, base=16), ip, HIQNET_PORT,msg_queues[key], resp_queues[key], subscribed_params[key], health_check_queue, disco_info)
         for key, ip in config["nodes"].items()}
     hiqnet_udp_thread = HiQnetUDPListenerThread("HiQnet UDP Thread", UDP_NODE_ID, "0.0.0.0", config["server_ip_address"], HIQNET_PORT, resp_queues[UDP_NODE_ID], health_check_queue, stats_queue, disco_info, broadcast_address)
+    hiqnet_tcp_server_thread = HiQnetTCPListenerThread("HiQnet TCP Server Thread", TCP_NODE_ID, "0.0.0.0", config["server_ip_address"], HIQNET_PORT, health_check_queue, disco_info, VERSION)
     
     broadcast_threads = {
         key: threading.Thread(target=websocket_broadcast_thread, args=(key,), daemon=True)
@@ -654,6 +659,7 @@ async def main():
 
     # start udp thread first to receive initial messages
     hiqnet_udp_thread.start()
+    hiqnet_tcp_server_thread.start()
     for t in hiqnet_tcp_threads.values():
         t.start()
     print(f"Websocket server listening on ws://0.0.0.0:{config['websocket_port']}", flush=True)
@@ -696,6 +702,9 @@ def safe_shutdown_thread():
     if hiqnet_udp_thread:
         hiqnet_udp_thread.exitFlag = True
         hiqnet_udp_thread.join()
+    if hiqnet_tcp_server_thread:
+        hiqnet_tcp_server_thread.exitFlag = True
+        hiqnet_tcp_server_thread.join()
 
     if msg_queues:
         for q in msg_queues.values():

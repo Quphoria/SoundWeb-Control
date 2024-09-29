@@ -1,4 +1,5 @@
 from enum import Enum
+import dataclasses
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Tuple
 import struct, re
@@ -22,6 +23,12 @@ ULONG = 4
 HIQNETADDR = 6
 
 MAX_SEQ_NUM = 0xffff
+
+# used for GetNetworkInfo
+# Taken from what AA was broadcasting
+# MAX_MTU = 1048576
+# Takes from BLU-100, seems to be a common value
+MAX_MTU = 1452 # also in DiscoveryInformation
 
 @dataclass
 class HiQnetAddress:
@@ -81,6 +88,49 @@ class MessageID(Enum):
     ParamSetPercent = 0x0102
     ParamSubscribePercent = 0x0111
 
+# See Foundation.Interfaces.eNmAttributes
+class AttributeID(Enum):
+    # All devices should support these
+    ClassName = 0       # STRING
+    NameString = 1      # STRING
+    Flags = 2           # UWORD
+    SerialNumber = 3    # BLOCK
+    SoftwareVersion = 4 # STRING
+    # The rest are ???, but 
+    DeveloperAccessRights = 5
+    HopCount = 6
+    VenueTableSize = 7
+    UserNameA = 8
+    UserNameB = 9
+    UserNameC = 10
+    UserNameD = 11
+    UserPasswordA = 12
+    UserPasswordB = 13
+    UserPasswordC = 14
+    UserPasswordD = 15
+    AddressMode = 16
+    AdminPassword = 17  # BLOCK (0 length)?
+    DevFuncPermsA = 18
+    DevFuncPermsB = 19
+    DevFuncPermsC = 20
+    DevFuncPermsD = 21
+    ConfigState = 22    # BLOCK (0 length)?
+    DeviceState = 23    # ULONG (0)?
+    VenueData = 24
+    ContainerId = 25
+    ContainerPosition = 26
+    ContainerType = 27
+    ContainerGUID = 28
+
+    # There are more (device specific), but those are the important ones
+BASE_ATTRIBUTES = [
+    AttributeID.ClassName.value,
+    AttributeID.NameString.value,
+    AttributeID.Flags.value,
+    AttributeID.SerialNumber.value,
+    AttributeID.SoftwareVersion.value,
+]
+
 @dataclass
 class HiQnetFlags:
     session_id: bool = False
@@ -131,6 +181,9 @@ class HiQnetHeader:
     hop_count: int = 5
     sequence_number: int = 0
     session_id: int = 0
+
+    def copy(self):
+        return dataclasses.replace(self)
 
     def encode(self, payload_length=0, sequence_number=None):
         if sequence_number is not None:
@@ -200,7 +253,7 @@ class HiQnetHeader:
         session_num = 0
         if flags.session_id: # session num
             session_num = int.from_bytes(header[21:23], "big")
-            raise DecodeFailed(f"Sessions not supported")
+            # raise DecodeFailed(f"Sessions not supported")
 
         message = data[data[1]:message_length]
 
@@ -263,6 +316,11 @@ def decode_message(data) -> List[HiQnetMessage]:
                     msgs.append(msg)
             elif header.message_id == MessageID.GetNetworkInfo:
                 msgs.append(GetNetworkInfo.decode(message, header))
+            elif header.message_id == MessageID.GetAttributes:
+                if header.flags.information:
+                    msgs.append(GetAttributesReply.decode(message, header))
+                else:
+                    msgs.append(GetAttributes.decode(message, header))
             else:
                 raise DecodeFailed(f"Message ID {header.message_id} not implemented")
         except DecodeFailed as ex: 
@@ -376,6 +434,8 @@ class NetworkInfo:
     subnet: str
     gateway: str
 
+    MSG_LENGTH = 19
+
     def __str__(self):
         return f"MAC={self.mac_addr} DHCP={1 if self.dhcp else 0} IP={self.ip} SUBNET={self.subnet} GATEWAY={self.gateway}"
 
@@ -474,14 +534,33 @@ class DiscoInfo(HiQnetMessage):
         is_query = not header.flags.information
         return cls(info, is_query, header)
 
+@dataclass
+class NetworkInterface:
+    network_info: NetworkInfo
+    network_id: int = 1
+    max_mtu: int = MAX_MTU
+
+    def encode(self):
+        data = self.max_mtu.to_bytes(ULONG, "big")
+        data += self.network_id.to_bytes(UBYTE, "big")
+        data += self.network_info.encode()
+        return data
+    
+    @classmethod
+    def decode(cls, data, i):
+        max_mtu = int.from_bytes(data[i:4+i], "big")
+        network_id = data[4+i]
+        network_info = NetworkInfo.decode(data[5+i:])
+        i += 5 + NetworkInfo.MSG_LENGTH
+        return i, cls(max_mtu=max_mtu, network_id=network_id, network_info=network_info)
+
 class GetNetworkInfo(HiQnetMessage):
-    def __init__(self, serial: bytes, network_id: int, network_info: NetworkInfo, is_query=False, *args, **kwargs):
+    def __init__(self, serial: bytes, interfaces: List[NetworkInterface], is_query=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.header.message_id = MessageID.DiscoInfo
+        self.header.message_id = MessageID.GetNetworkInfo
         self.header.flags.information = not is_query
         self.serial = serial
-        self.network_id = network_id if self.network_id is not None else 1
-        self.network_info = network_info
+        self.interfaces = interfaces
     
     def is_query(self):
         return not self.header.flags.information
@@ -489,26 +568,28 @@ class GetNetworkInfo(HiQnetMessage):
     def get_payload(self):
         data = len(self.serial).to_bytes(2, "big")
         data += self.serial
-        data += self.network_id.to_bytes(1, "big")
-        data += self.network_info.encode()
+        data += len(self.interfaces).to_bytes(UWORD, "big")
+        for intf in self.interfaces:
+            data += intf.encode()
         return data
 
     def __str__(self):
-        if self.header.flags.information:
+        if not self.header.flags.information:
             return f"GetNetworkInfo SER={self.serial.hex()}"
-        return f"GetNetworkInfo SER={self.serial.hex()} NET={self.network_id} {self.network_info}"
+        return f"GetNetworkInfo SER={self.serial.hex()} NETS={self.interfaces}"
 
     @classmethod
     def decode(cls, data: bytes, header: HiQnetHeader):
         is_query = not header.flags.information
         serial_length = int.from_bytes(data[:2], "big")
         serial = data[2:2+serial_length] # 16 bytes
-        network_id = 1
-        network_info = None
-        if not is_query:
-            network_id = data[2+serial_length]
-            network_info = NetworkInfo.decode(data[3+serial_length:])
-        return cls(serial, network_id, network_info, is_query, header)
+        num_interfaces = int.from_bytes(data[2+serial_length:4+serial_length], "big")
+        i = 4+serial_length
+        interfaces = []
+        for _ in range(num_interfaces):
+            i, intf = NetworkInterface.decode(data, i)
+            interfaces.append(intf)
+        return cls(serial, interfaces, is_query, header)
 
 class HelloQuery(HiQnetMessage):
     def __init__(self, session_number: int, flag_mask: int = HiQnetFlags.session_supported(), *args, **kwargs):
@@ -579,6 +660,78 @@ class Goodbye(HiQnetMessage):
     def decode(cls, data: bytes, header: HiQnetHeader):
         device_address = int.from_bytes(data[:2], "big")
         return cls(device_address, header)
+    
+class GetAttributes(HiQnetMessage):
+    def __init__(self, attribute_ids: List[int] = BASE_ATTRIBUTES, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.header.message_id = MessageID.GetAttributes
+        self.attribute_ids = attribute_ids
+    
+    def get_payload(self):
+        data = len(self.attribute_ids).to_bytes(UWORD, "big")
+        for aid in self.attribute_ids:
+            data += aid(UWORD, "big")
+        return data
+
+    def __str__(self):
+        return f"GetAttributes : {self.attribute_ids}"
+
+    @classmethod
+    def decode(cls, data: bytes, header: HiQnetHeader):
+        num_aids = int.from_bytes(data[:2], "big")
+        aids = []
+        for i in range(num_aids):
+            aids.append(int.from_bytes(data[2+i*2:4+i*2], "big"))
+        return cls(aids, header)
+
+@dataclass
+class Attribute:
+    aid: int
+    datatype: ParamType
+    value: Any
+
+    def encode(self):
+        data = self.aid.to_bytes(UWORD, "big")
+        data += self.datatype.value.to_bytes(UBYTE, "big")
+        # avoid re-writing datatype encode function
+        # use from Parameter
+        data += Parameter(0, self.datatype, self.value).encode()
+        return data
+    
+    @classmethod
+    def decode(cls, data, i):
+        aid = int.from_bytes(data[i:2+i], "big")
+        datatype = ParamType(data[2+i])
+        # avoid re-writing datatype decode function
+        # use from Parameter
+        i, p = Parameter.decode(0, datatype, data, 3+i)
+        return i, cls(aid, datatype, p.value)
+
+class GetAttributesReply(HiQnetMessage):
+    def __init__(self, attributes: List[Attribute], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.header.message_id = MessageID.GetAttributes
+        self.header.flags.information = True
+        self.attributes = attributes
+
+    def get_payload(self):
+        data = len(self.attributes).to_bytes(UWORD, "big")
+        for attribute in self.attributes:
+            data += attribute.encode()
+        return data
+
+    def __str__(self):
+        return f"GetAttributesReply : {self.attributes}" 
+
+    @classmethod
+    def decode(cls, data: bytes, header: HiQnetHeader):
+        num_attributes = int.from_bytes(data[:2], "big")
+        attributes = []
+        n = 2
+        for _ in range(num_attributes):
+            n, attr = Attribute.decode(data, n)
+            attributes.append(attr)
+        return cls(attributes, header)
 
 class MultiObjectParamSet(HiQnetMessage):
     # dictionary of objects with list of parameters

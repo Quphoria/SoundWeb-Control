@@ -1,6 +1,7 @@
 import asyncore, asyncio, threading, time, functools, socket, uuid
 from janus import Queue, SyncQueue, SyncQueueEmpty
 import janus
+import traceback as tb
 
 from hiqnet_proto import *
 
@@ -8,9 +9,17 @@ RX_MSG_SIZE = 4096
 UDP_TEST_INTERVAL = 5 # 5 seconds
 UDP_MAX_FAIL_THRESHOLD = 6 # 30 seconds (5*6)
 UDP_DISCOVERY_BROADCAST_INTERVAL = 5 # 5 seconds
+UDP_DISCOVERY_BROADCAST = False # See HiQnetUDPListenerProtocol.discovery_broadcast(), this does not affect the Device Arrival "Announce" messages
+UDP_DISCOVERY_ANNOUNCEMENT_MESSAGES = 5
+UDP_DISCOVERY_ANNOUNCEMENT_INTERVAL = 2
+TCP_TEST_INTERVAL = 5 # 5 seconds
+TCP_MAX_FAIL_THRESHOLD = 6 # 30 seconds (5*6)
 PACKETS_PER_SECOND_INTERVAL = 5 # 5 seconds
 UDP_DECODE_WORKERS = 5
 UDP_RESP_QUEUE_FULL_WARN_INTEVAL = 2 # 2 seconds
+
+ATTR_CLASS_NAME = "Quphoria's Soundweb Control"
+ATTR_NAME = "Soundweb Control"
 
 SEQ_NUM_MIN_DIST = 0x1000
 SEQ_NUM_TIMEOUT = 10 # 10 seconds
@@ -274,6 +283,7 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         self._ready = asyncio.Event()
         self.loop = loop
         self.udp_test_task = loop.create_task(self.udp_test())
+        self.discovery_task = None
         self.discovery_task = loop.create_task(self.discovery_broadcast())
         self.stats_task = loop.create_task(self.update_stats())
         self.transport = None
@@ -288,9 +298,11 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
         self.test_rtt = None
         self.decode_queue = Queue(200)
         self.decode_thread = None
+        self.hiqnet_device_ip_cache = {}
 
     def end_connection(self):
-        self.discovery_task.cancel()
+        if self.discovery_task:
+            self.discovery_task.cancel()
         self.udp_test_task.cancel()
         self.stats_task.cancel()
         self.decode_queue.close()
@@ -333,16 +345,33 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
             except:
                 pass
 
+    # We probably don't have to do this,
+    # as we now respond to DiscoInfo messages asking for us (see 4.2.1 Searching for a Device)
     async def discovery_broadcast(self):
         """Periodically send DiscoInfo broadcast packets"""
         await self._ready.wait()
         disco_info_msg = DiscoInfo(self.disco_info, is_query=False, header=HiQnetHeader(HiQnetAddress.broadcast()))
         disco_info_msg.header.flags.guaranteed = False
+        n = UDP_DISCOVERY_ANNOUNCEMENT_MESSAGES
+        print(self.name, "Sending Device Arrival/Annoucement messages")
         while self.loop.is_running():
             try:
                 self.transport.sendto(disco_info_msg.encode(self.next_seq()), (self.broadcast_address, self.hiqnet_port))
             except UnsupportedMessage as ex:
                 print(self.name, "Error Sending UDP Discovery Packet:", ex)
+            
+            if n == 1:
+                print(self.name, "Finished sending Device Arrival/Annoucement messages")
+            n = max(0, n-1)
+            if n != 0:
+                await asyncio.sleep(UDP_DISCOVERY_ANNOUNCEMENT_INTERVAL)
+                continue
+
+            if not UDP_DISCOVERY_BROADCAST:
+                # we have finished announcement
+                # but are not configured to continuously annouce
+                break
+
             await asyncio.sleep(UDP_DISCOVERY_BROADCAST_INTERVAL)
 
     async def update_stats(self):
@@ -417,18 +446,42 @@ class HiQnetUDPListenerProtocol(asyncio.DatagramProtocol):
                     print(name, "Incorrect Destination:", msg, flush=True)
                     continue
 
-                if type(msg) == GetNetworkInfo and msg.is_query:
-                    print(f"{msg.header.source_address.device} : {msg}", flush=True)
+                if type(msg) == DiscoInfo:
+                    # See comment before discovery_broadcast()
                     dest = msg.header.source_address
 
-                    serial = protocol.disco_info.serial
-                    network_id = protocol.disco_info.network_id
-                    network_info = protocol.disco_info.network_info
+                    dev = msg.info.hiqnet_device
+                    ip = msg.info.network_info.ip
+                    protocol.hiqnet_device_ip_cache[dev] = ip
 
-                    network_info_msg = GetNetworkInfo(serial, network_id, network_info, is_query=False, header=HiQnetHeader(dest))
+                    if msg.is_query():
+                        disco_info_msg = DiscoInfo(protocol.disco_info, is_query=False, header=HiQnetHeader(dest))
+                        disco_info_msg.header.flags.guaranteed = False
+                        try:
+                            protocol.transport.sendto(disco_info_msg.encode(protocol.next_seq()), (ip, protocol.hiqnet_port))
+                        except UnsupportedMessage as ex:
+                            print(protocol.name, "Error Sending UDP Discovery Reply:", ex)
+                    continue
+
+                if type(msg) == GetNetworkInfo and msg.is_query:
+                    # print(f"{msg.header.source_address.device} : {msg}", flush=True)
+                    dest = msg.header.source_address
+                    if dest.device not in protocol.hiqnet_device_ip_cache:
+                        print("Unable to send GetNetworkInfo reply, as ip address is not known for device:", dest.device)
+                        continue
+                    ip = protocol.hiqnet_device_ip_cache[dest.device]
+
+                    serial = protocol.disco_info.serial
+                    intf = NetworkInterface(
+                        network_id=protocol.disco_info.network_id,
+                        network_info=protocol.disco_info.network_info
+                    )
+
+                    network_info_msg = GetNetworkInfo(serial, [intf], is_query=False, header=HiQnetHeader(dest))
                     network_info_msg.header.flags.guaranteed = False
+                    network_info_msg.header.flags.information = True
                     try:
-                        protocol.transport.sendto(network_info_msg.encode(protocol.next_seq()), (protocol.broadcast_address, protocol.hiqnet_port))
+                        protocol.transport.sendto(network_info_msg.encode(protocol.next_seq()), (ip, protocol.hiqnet_port))
                     except UnsupportedMessage as ex:
                         print(protocol.name, "Error Sending GetNetworkInfo Reply:", ex)
                     continue
@@ -553,6 +606,246 @@ class HiQnetUDPListenerThread(threading.Thread):
             self.stats_queue.sync_q.put({"id": self.h_id, "stats": {"good_pps": None, "total_pps": None, "decode_time": None, "decode_time_percent": None, "test_rtt_ms": None}})
             if not self.exitFlag:
                 print(self.name, "HiQnet UDP listener thread stopped, Restarting in 5 seconds", flush=True)
+                for _ in range(5):
+                    if self.exitFlag:
+                        break
+                    time.sleep(1)
+        print(self.name, "exited", flush=True)
+
+class HiQnetTCPListenerProtocol(asyncio.Protocol):
+    def __init__(self, name: str, h_id: str, server_ip: str, hiqnet_port: int, disco_info: DiscoveryInformation, version: str, loop):
+        self.name = name
+        self.h_id = h_id
+        self.server_ip = server_ip
+        self.hiqnet_port = hiqnet_port
+        self.disco_info = disco_info
+        self.version = version
+        self.loop = loop
+        self.transport = None
+        self.seq = 0
+        self.peername = None
+        self.decode_queue = Queue(200)
+        self.decode_thread = None
+        self.reply_header = None
+        self.send_keepalives = False
+        self.keepalive_task = loop.create_task(self.keepalive())
+        self.keepalive_interval_ms = self.disco_info.keep_alive_ms
+
+    async def keepalive(self):
+        while self.loop.is_running():
+            if self.send_keepalives and self.reply_header:
+                disco_info_msg = DiscoInfo(self.disco_info, is_query=True, header=self.reply_header.copy())
+                # keepalive's aren't send guaranteed (observed on BLU-100)
+                disco_info_msg.header.flags.guaranteed = False
+                self.transport.write(disco_info_msg.encode(self.next_seq()))
+            await asyncio.sleep(self.keepalive_interval_ms)
+
+    def end_connection(self):
+        self.keepalive_task.cancel()
+        self.decode_queue.close()
+        if self.decode_thread:
+            self.decode_thread.join()
+
+    def next_seq(self):
+        s = self.seq
+        self.seq = (s+1) % 0x10000 # max is 0xffff
+        return s
+
+    def connection_made(self, transport):
+        self.peername = transport.get_extra_info('peername')
+        print(self.name, f'Connection from {self.peername}', flush=True)
+
+        self.decode_thread = threading.Thread(target=self.decode_handler, args=(self,))
+        self.decode_thread.daemon = True
+        self.decode_thread.start()
+        
+        self.transport = transport
+
+        # Send DiscoInfo (to broadcast address, since we don't know the remote id)
+        # Observed a BLU-100 doing this
+        disco_info_msg = DiscoInfo(self.disco_info, is_query=False, header=HiQnetHeader(HiQnetAddress.broadcast()))
+        try:
+            self.transport.write(disco_info_msg.encode(self.next_seq()))
+        except UnsupportedMessage as ex:
+            print(self.name, f"Error Sending TCP Discovery Info to {self.peername}:", ex)
+
+    def data_received(self, data):
+        if not self.decode_queue.sync_q.closed:
+            self.decode_queue.sync_q.put(data)
+
+    def connection_lost(self, exc):
+        print(self.name, f"Connection Error from {self.peername}:", exc, flush=True)
+        self.end_connection()
+
+    @staticmethod
+    def decode_handler(protocol: 'HiQnetTCPListenerProtocol'):
+        name = protocol.name
+
+        got_goodbye = False
+        while not protocol.decode_queue.sync_q.closed and not got_goodbye:
+            try:
+                data = protocol.decode_queue.sync_q.get(timeout=1)
+            except SyncQueueEmpty:
+                continue
+
+            try:
+                msgs = decode_message(data)
+            except DecodeFailed as ex:
+                print(name, "Decode Error:", ex, flush=True)
+                return
+            
+            for msg in msgs:
+                if type(msg) == DecodeFailed:
+                    print(name, "Decode Error:", msg, flush=True)
+                    continue
+
+                if type(msg) == IncorrectDestination:
+                    print(name, "Incorrect Destination:", msg, flush=True)
+                    continue
+
+                if type(msg) == DiscoInfo:
+                    # keepalive time, yay!
+                    protocol.keepalive_interval_ms = min(protocol.keepalive_interval_ms, msg.info.keep_alive_ms - 1000)
+                    
+                    if not protocol.reply_header:
+                        protocol.reply_header = HiQnetHeader(msg.header.source_address)
+
+                    if msg.is_query():
+                        disco_info_msg = DiscoInfo(protocol.disco_info, is_query=False, header=protocol.reply_header.copy())
+                        try:
+                            protocol.transport.write(disco_info_msg.encode(protocol.next_seq()))
+                        except UnsupportedMessage as ex:
+                            print(protocol.name, f"Error Sending TCP Discovery Reply to {protocol.peername}:", ex)
+                    continue
+
+                if type(msg) == StartKeepAlive:
+                    if not protocol.reply_header:
+                        protocol.reply_header = HiQnetHeader(msg.header.source_address)
+                    protocol.send_keepalives = True
+                    continue
+
+                if type(msg) == HelloQuery:
+                    # Supported flags:
+                    #   Session num: 0x100
+                    # - Multi part: 0x40   No support
+                    #   Guaranteed: 0x20
+                    #   Error headers?: 0x8
+                    #   Information: 0x4
+                    #   Ack: 0x2
+                    #   Req Ack: 0x1
+
+                    protocol.reply_header.session_id = msg.session_number
+                    hello_info_msg = HelloInfo(msg.session_number, 0x12f, protocol.reply_header.copy())
+                    try:
+                        protocol.transport.write(hello_info_msg.encode(protocol.next_seq()))
+                    except UnsupportedMessage as ex:
+                        print(protocol.name, f"Error Sending TCP HelloInfo to {protocol.peername}:", ex)
+                    continue
+
+                if type(msg) == Goodbye:
+                    print(protocol.name, f"Got Goodbye from {protocol.peername}", flush=True)
+                    
+                    # close socket
+                    protocol.transport.close()
+                    got_goodbye = True
+                    break
+
+                if type(msg) == GetAttributes:
+                    print(protocol.name, f"GetAttributes request {msg.attribute_ids} from {protocol.peername}", flush=True)
+                    
+                    attr_data = {
+                        AttributeID.ClassName: (ParamType.STRING, ATTR_CLASS_NAME),
+                        AttributeID.NameString: (ParamType.STRING, ATTR_NAME),
+                        AttributeID.SerialNumber: (ParamType.BLOCK, protocol.disco_info.serial),
+                        AttributeID.SoftwareVersion: (ParamType.STRING, protocol.version),
+                        # Values from BLU-100 reply
+                        AttributeID.AdminPassword: (ParamType.BLOCK, b""),
+                        AttributeID.ConfigState: (ParamType.BLOCK, b""),
+                        AttributeID.DeviceState: (ParamType.ULONG, 0),
+                    }
+
+                    attributes = []
+                    unknown = False
+                    for aid in msg.attribute_ids:
+                        # Skip unknown aids
+                        if not any(True for x in AttributeID if x.value == aid):
+                            print(protocol.name, f"GetAttributes request for unknown attribute id ({aid}) from {protocol.peername}", flush=True)
+                            unknown = True
+                            break
+
+                        if AttributeID(aid) not in attr_data:
+                            print(protocol.name, f"GetAttributes request for undefined attribute id ({aid}) from {protocol.peername}", flush=True)
+                            unknown = True
+                            break
+
+                        datatype, value = attr_data[AttributeID(aid)]
+                        attributes.append(Attribute(aid, datatype, value))
+
+                    if unknown:
+                        continue
+
+
+                    getattr_reply = GetAttributesReply(attributes, protocol.reply_header.copy())
+                    try:
+                        protocol.transport.write(getattr_reply.encode(protocol.next_seq()))
+                    except UnsupportedMessage as ex:
+                        print(protocol.name, f"Error Sending GetAttributesReply to {protocol.peername}:", ex)
+                    continue
+
+                # MessageID.ParameterSubscribeAll
+
+                print("TCP:", msg)
+
+class HiQnetTCPListenerThread(threading.Thread):
+    def __init__(self, name: str, h_id: str, bind_ip: str, server_ip: str, hiqnet_port: int, health_check_queue: Queue, disco_info: DiscoveryInformation, version: str):
+        super().__init__(daemon=True)
+        self.name = name
+        self.h_id = h_id
+        self.bind_ip = bind_ip
+        self.server_ip = server_ip
+        self.hiqnet_port = hiqnet_port
+        self.health_queue = health_check_queue
+        self.health_queue.sync_q.put({"id": self.h_id, "status": False})
+        self.disco_info = disco_info
+        self.version = version
+        self.exitFlag = False
+        self.restartFlag = False
+
+    async def createServer(self, loop):        
+        server = await loop.create_server(
+            lambda: HiQnetTCPListenerProtocol(self.name, self.h_id, self.server_ip,
+                self.hiqnet_port, self.disco_info, self.version, loop),
+            host=self.bind_ip, port=self.hiqnet_port)
+
+        self.health_queue.sync_q.put({"id": self.h_id, "status": True})
+        async with server:
+            server_task = loop.create_task(server.serve_forever())
+            while not self.exitFlag and not self.restartFlag:
+                await asyncio.sleep(1)
+            server.close()
+            for task in [server_task]:
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+    def run(self):
+        print(self.name, "started", flush=True)
+        while not self.exitFlag:
+            self.restartFlag = False
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                client_task = loop.create_task(self.createServer(loop))
+                loop.run_until_complete(client_task)
+                loop.stop()
+                loop.close()
+            except Exception as ex:
+                print(self.name, "Error:", ex, flush=True)
+                print(tb.format_exc(), flush=True)
+            self.health_queue.sync_q.put({"id": self.h_id, "status": False})
+            if not self.exitFlag:
+                print(self.name, "HiQnet TCP server thread stopped, Restarting in 5 seconds", flush=True)
                 for _ in range(5):
                     if self.exitFlag:
                         break
