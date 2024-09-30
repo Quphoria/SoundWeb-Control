@@ -113,7 +113,10 @@ class GradMeter extends ControlElement {
     var num = Math.round(num * 100000) / 100000; // Round to 5dp
     var new_peakpos = this.peakpos - num;
     if (new_peakpos < 0) new_peakpos = 0;
-    if (new_peakpos < this.p_value) new_peakpos = this.p_value;
+    if (new_peakpos < this.p_value) {
+      new_peakpos = this.p_value;
+      this.lastpeakupdate_ms = Date.now(); // Since we updated it from p_value, update the timestamp
+    }
     // If has changed when rounded to 5dp
     if (Math.round(this.peakpos * 100000) != Math.round(new_peakpos * 100000)) {
       this.peakpos = new_peakpos;
