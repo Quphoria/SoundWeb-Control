@@ -505,6 +505,7 @@ class SegMeter(ParameterControl):
             c.attribs["scale"] = properties.find("DisplayScale").text == "True"
             c.attribs["scale_left"] = properties.find("ScaleLoc").text == "LEFT_OR_TOP"
             c.attribs["scale_space"] = int(properties.find("ScaleSpace").text)
+            c.attribs["TickCount"] = int(properties.find("TickCount").text)
             c.attribs["offColour"] = parse_rgb(properties.find("OffColor").text)
             c.attribs["Sec1Color"] = parse_rgb(properties.find("Sec1Color").text)
             c.attribs["Sec2Color"] = parse_rgb(properties.find("Sec2Color").text)
@@ -518,6 +519,42 @@ class SegMeter(ParameterControl):
             c.attribs["gapSize"] = int(properties.find("SegSpacing").text)
             c.attribs["segments"] = int(properties.find("SegmentCount").text)
             c.attribs["segment_width"] = int(properties.find("SegWidth").text)
+        return c
+    
+@dataclass
+class GradMeter(ParameterControl):
+    component = "GradMeter"
+    @classmethod
+    def parse(cls, Control, **kwargs):
+        c = super().parse(Control, **kwargs)
+        c.attribs["ticks"] = []
+        comp_props = Control.find('.//ComplexProperties[@Tag="CustomScale"]')
+        if comp_props is not None:
+            for tick in comp_props.findall("Tick"):
+                c.attribs["ticks"].append({
+                    "pos": float(tick.attrib["Pos"]),
+                    "label": tick.attrib["Label"]
+                })
+        properties = Control.find("ControlProperties")
+        if properties is not None:
+            c.attribs["scale"] = properties.find("DisplayScale").text == "True"
+            c.attribs["scale_left"] = properties.find("ScaleLoc").text == "LEFT_OR_TOP"
+            c.attribs["scale_space"] = int(properties.find("ScaleSpace").text)
+            c.attribs["TickCount"] = int(properties.find("TickCount").text)
+            c.attribs["BackColor1"] = parse_rgb(properties.find("BackColor1").text)
+            c.attribs["BackColor2"] = parse_rgb(properties.find("BackColor2").text)
+            c.attribs["LowColor"] = parse_rgb(properties.find("LowColor").text)
+            c.attribs["MidColor"] = parse_rgb(properties.find("MidColor").text)
+            c.attribs["HighColor"] = parse_rgb(properties.find("HighColor").text)
+            c.attribs["MidThreshhold"] = properties.find("MidThreshhold").text
+            c.attribs["HighThreshhold"] = properties.find("HighThreshhold").text
+            c.attribs["GradFraction"] = float(properties.find("GradFraction").text)
+            if c.attribs["MidThreshhold"] is None:
+                c.attribs["MidThreshhold"] = 0.5
+            if c.attribs["HighThreshhold"] is None:
+                c.attribs["HighThreshhold"] = 0.75
+            if c.attribs["GradFraction"] is None:
+                c.attribs["GradFraction"] = 0.2
         return c
 
 @dataclass
@@ -545,6 +582,7 @@ class Fader(ParameterControl):
             c.attribs["showTicks"] = properties.find("DispTicks").text == "True"
             c.attribs["ticksLeft"] = properties.find("TickLocation").text in ["LeftSide", "BothSides"]
             c.attribs["ticksRight"] = properties.find("TickLocation").text in ["RightSide", "BothSides"]
+            c.attribs["TickCount"] = int(properties.find("TickCount").text)
             slidersize = XY.parse(properties.find("SliderSize").text)
             slideroffset = XY.parse(properties.find("SliderBias").text)
             c.attribs["handleWidth"] = slidersize.x
@@ -584,6 +622,7 @@ control_types = {
     "HPRO.SDIG.Controls.HProOnOffButton": OnOffButton,
     "HPRO.SDIG.Controls.HProMomentaryButton": MomentaryButton,
     "HPRO.SDIG.Controls.HProSegMeter": SegMeter,
+    "HPRO.SDIG.Controls.HProGradMeter": GradMeter,
     "HPRO.SDIG.Controls.HProSliderV": Fader,
     "HPRO.SDIG.Controls.HProLatchingButton": OnOffButton,
 }

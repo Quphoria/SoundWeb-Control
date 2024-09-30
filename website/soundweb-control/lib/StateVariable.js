@@ -607,6 +607,10 @@ class StateVariable {
     // }
     return (svValue - this.min) / (this.max - this.min);
   }
+
+  fromPercentage(pValue) {
+    return this.min + pValue*(this.max - this.min);
+  }
 }
 
 function getSV(classID) {

@@ -6,6 +6,10 @@ function scale_percentage(value, min, max) {
   return (value - min) / (max - min)
 }
 
+function clamp_percent(value) {
+  return value > 1 ? 1 : value < 0 ? 0 : value;
+}
+
 class GradMeter extends ControlElement {
   static defaultProps = {
     x: 0,
@@ -15,13 +19,15 @@ class GradMeter extends ControlElement {
     scale: false,
     scale_left: false,
     scale_space: 20,
-    offColour: "#222",
+    TickCount: 0,
+    BackColor1: "#222",
+    BackColor2: "#222",
     LowColor: "rgb(0, 225, 0)",
     MidColor: "rgb(225, 225, 0)",
     HighColor: "rgb(225, 0, 0)",
     MidThreshhold: 0.5,
     HighThreshhold: 0.75,
-    GradFraction: 0.2, // The percentage gradient height between the colours
+    GradFraction: 0.25, // The percentage gradient height between the colours
     leftBorder: 1,
     rightBorder: 1,
     ticks: []
@@ -34,6 +40,19 @@ class GradMeter extends ControlElement {
     const statevariable = this.parameterStateVariable();
     this.p_min = statevariable.getPercentage(props.min == undefined ? statevariable.min : this.parameterStringToValue(props.min));
     this.p_max = statevariable.getPercentage(props.max == undefined ? statevariable.max : this.parameterStringToValue(props.max));
+    this.ticks = props.ticks;
+    if (this.ticks.length == 0) { // Generate ticks if we do not have custom ticks specified
+      for (var i = 0; i < props.TickCount; i++) {
+        const p_value = i/(props.TickCount-1);
+        const value = this.p_min + p_value*(this.p_max - this.p_min);
+        const svValue = statevariable.fromPercentage(value);
+        const label = statevariable.vSVToString(svValue, false, 2); // Generate with units, 2dp
+        this.ticks.push({
+          pos: value,
+          label: label
+        });
+      }
+    }
     this.MidThreshhold = typeof props.MidThreshhold === 'number' ? props.MidThreshhold : 
       scale_percentage(statevariable.getPercentage(this.parameterStringToValue(props.MidThreshhold)), this.p_min, this.p_max);
     this.HighThreshhold = typeof props.HighThreshhold === 'number' ? props.HighThreshhold : 
@@ -56,9 +75,9 @@ class GradMeter extends ControlElement {
   }
 
   drawTick(value, text) {
-    const { w, h, scale_left, scale_space, gapSize, font } = this.props;
+    const { w, h, scale_left, scale_space, font } = this.props;
 
-    const tick_h = (1-value)*(h - 2*gapSize) + gapSize;
+    const tick_h = (1-value)*h;
 
     return (<div
       className='noselect'
@@ -81,11 +100,11 @@ class GradMeter extends ControlElement {
   }
 
   getTicks() {
-    const { x, y, w, h, scale, ticks } = this.props;
+    const { x, y, w, h, scale } = this.props;
     if (!scale) return;
 
     return (<div>
-      {ticks.map(tick => {
+      {this.ticks.map(tick => {
         const scaled_pos = scale_percentage(tick.pos, this.p_min, this.p_max);
         if (scaled_pos >= 0 && scaled_pos <= 1) {
           return this.drawTick(scaled_pos, tick.label);
@@ -95,37 +114,43 @@ class GradMeter extends ControlElement {
   }
 
   draw(output_ctx, temp_canvas, ctx, value) {
-    const {w, h, scale, scale_left, scale_space, leftBorder, rightBorder,
-      offColour, Sec1Color, Sec2Color, Sec3Color,
-      segments, gapSize} = this.props;
-    const segment_width = w - (scale ? scale_space : 0) - leftBorder - rightBorder;
-    const segment_left = leftBorder + ((scale && scale_left) ? scale_space : 0);
+    const {w, h, scale, scale_left, scale_space,
+      BackColor1, BackColor2, LowColor, MidColor, HighColor,
+      GradFraction, leftBorder, rightBorder} = this.props;
+    const bar_width = w - (scale ? scale_space : 0) - leftBorder - rightBorder;
+    const bar_left = leftBorder + ((scale && scale_left) ? scale_space : 0);
+    const threshold_1 = this.MidThreshhold;
+    const threshold_2 = this.HighThreshhold;
 
-    var p_value = scale_percentage(value, this.p_min, this.p_max);
-    p_value = p_value > 1 ? 1 : p_value < 0 ? 0 : p_value;
+    // It seems GradFraction is both gradient heights added together?
+    const grad_frac = GradFraction / 2; 
+
+    var p_value = clamp_percent(scale_percentage(value, this.p_min, this.p_max));
 
     ctx.save();
     ctx.clearRect(0, 0, w, h);
-    const fillHeight = h-gapSize;
-    for (var i = 0; i < segments; i++) {
-      var seg_h = (fillHeight / segments) - 1*gapSize;
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = offColour;
-      ctx.beginPath();
-      ctx.rect(segment_left, h - (gapSize + i*(fillHeight / segments)) - seg_h, segment_width, seg_h);
-      ctx.fill();
-      if (p_value * segments < i) continue; // If segment empty stop drawing
-      ctx.fillStyle = Sec1Color;
-      if (i/segments > this.threshold_2) ctx.fillStyle = Sec2Color;
-      if (i/segments > this.threshold_3) ctx.fillStyle = Sec3Color;
-      ctx.beginPath();
-      if (p_value * segments < i+1) { // Check if segment isn't full
-        ctx.globalAlpha = p_value * segments - i;
-        // seg_h *= p_value * segments - i;
-      }
-      ctx.rect(segment_left, h - (gapSize + i*(fillHeight / segments)) - seg_h, segment_width, seg_h);
-      ctx.fill();
-    }
+
+    // Create horizontal gradient L->R of BackColor1 to BackColor2
+    const gradient = ctx.createLinearGradient(bar_left, 0, bar_left+bar_width, 0);
+    gradient.addColorStop(0, BackColor1);
+    gradient.addColorStop(1, BackColor2);
+    ctx.fillStyle = gradient;
+    // Draw background
+    ctx.fillRect(bar_left, 0, bar_width, h);
+
+    // Create vertical gradient B->T of LowColor -> MidColor -> HighColor
+    const gradient2 = ctx.createLinearGradient(0, h, 0, 0); // (top of canvas is y=0)
+    // Add stops either side of the transition regions, so it is solid between them
+    gradient2.addColorStop(0, LowColor);
+    gradient2.addColorStop(clamp_percent(threshold_1 - (grad_frac/2)), LowColor);
+    gradient2.addColorStop(clamp_percent(threshold_1 + (grad_frac/2)), MidColor);
+    gradient2.addColorStop(clamp_percent(threshold_2 - (grad_frac/2)), MidColor);
+    gradient2.addColorStop(clamp_percent(threshold_2 + (grad_frac/2)), HighColor);
+    gradient2.addColorStop(1, HighColor);
+    ctx.fillStyle = gradient2;
+    // Draw bar (top of canvas is y=0)
+    ctx.fillRect(bar_left, h*(1-p_value), bar_width, h);
+
     ctx.restore();
 
     // Do this to prevent flicker while rendering

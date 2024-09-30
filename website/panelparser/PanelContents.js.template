@@ -14,6 +14,7 @@ import Rectangle from "./components/Rectangle"
 import TabButton from "./components/TabButton"
 import TabContainer from "./components/TabContainer"
 import ErrorBox from "./components/ErrorBox"
+import GradMeter from "./components/GradMeter"
 
 function getSubtab(subtab, depth) {
   if (subtab.length > depth) {
