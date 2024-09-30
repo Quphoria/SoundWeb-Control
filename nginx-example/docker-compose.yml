@@ -20,6 +20,7 @@ services:
     image: quphoria/hiqnet-websocket-proxy
     ports:
       - "3804:3804/udp"
+      - "3804:3804/tcp"
     volumes:
       - ./data/backend:/app/config
     networks:

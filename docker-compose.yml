@@ -19,6 +19,7 @@ services:
     ports:
       - "8765:8765/tcp"
       - "3804:3804/udp"
+      - "3804:3804/tcp"
     volumes:
       - ./data/backend:/app/config
     logging:
