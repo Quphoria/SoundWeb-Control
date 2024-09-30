@@ -15,6 +15,7 @@ class SegMeter extends ControlElement {
     scale: false,
     scale_left: false,
     scale_space: 20,
+    TickCount: 0,
     offColour: "#222",
     Sec1Color: "rgb(0, 225, 0)",
     Sec2Color: "rgb(225, 225, 0)",
@@ -36,6 +37,19 @@ class SegMeter extends ControlElement {
     const statevariable = this.parameterStateVariable();
     this.p_min = statevariable.getPercentage(props.min == undefined ? statevariable.min : this.parameterStringToValue(props.min));
     this.p_max = statevariable.getPercentage(props.max == undefined ? statevariable.max : this.parameterStringToValue(props.max));
+    this.ticks = props.ticks;
+    if (this.ticks.length == 0) { // Generate ticks if we do not have custom ticks specified
+      for (var i = 0; i < props.TickCount; i++) {
+        const p_value = i/(props.TickCount-1);
+        const value = this.p_min + p_value*(this.p_max - this.p_min);
+        const svValue = statevariable.fromPercentage(value);
+        const label = statevariable.vSVToString(svValue, false, 2); // Generate with units, 2dp
+        this.ticks.push({
+          pos: value,
+          label: label
+        });
+      }
+    }
     this.threshold_2 = typeof props.Sec2Threshold === 'number' ? props.Sec2Threshold : 
       scale_percentage(statevariable.getPercentage(this.parameterStringToValue(props.Sec2Threshold)), this.p_min, this.p_max);
     this.threshold_3 = typeof props.Sec3Threshold === 'number' ? props.Sec3Threshold : 
@@ -83,11 +97,11 @@ class SegMeter extends ControlElement {
   }
 
   getTicks() {
-    const { x, y, w, h, scale, ticks } = this.props;
+    const { x, y, w, h, scale } = this.props;
     if (!scale) return;
 
     return (<div>
-      {ticks.map(tick => {
+      {this.ticks.map(tick => {
         const scaled_pos = scale_percentage(tick.pos, this.p_min, this.p_max);
         if (scaled_pos >= 0 && scaled_pos <= 1) {
           return this.drawTick(scaled_pos, tick.label);

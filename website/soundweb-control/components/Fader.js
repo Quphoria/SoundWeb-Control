@@ -25,6 +25,7 @@ class Fader extends ControlElement {
     capOffsetX: 0,
     capOffsetY: 0,
     showTicks: false,
+    TickCount: 0,
     ticksLeft: false,
     ticksRight: true,
     tickLength: 40,
@@ -154,15 +155,28 @@ class Fader extends ControlElement {
   }
 
   getTicks() {
-    const { showTicks, ticks } = this.props;
+    const { showTicks, ticks, TickCount } = this.props;
     if (!showTicks) return;
 
     const statevariable = this.parameterStateVariable();
     const p_min = statevariable.getPercentage(this.props.min == undefined ? statevariable.min : this.parameterStringToValue(this.props.min));
     const p_max = statevariable.getPercentage(this.props.max == undefined ? statevariable.max : this.parameterStringToValue(this.props.max));
+    this.ticks = ticks;
+    if (this.ticks.length == 0) { // Generate ticks if we do not have custom ticks specified
+      for (var i = 0; i < TickCount; i++) {
+        const p_value = i/(TickCount-1);
+        const value = p_min + p_value*(p_max - p_min);
+        const svValue = statevariable.fromPercentage(value);
+        const label = statevariable.vSVToString(svValue, false, 2); // Generate with units, 2dp
+        this.ticks.push({
+          pos: value,
+          label: label
+        });
+      }
+    }
 
     return ( <div>
-      {ticks.map(tick => {
+      {this.ticks.map(tick => {
         const scaled_pos = (tick.pos - p_min) / (p_max - p_min);
         if (scaled_pos >= 0 && scaled_pos <= 1) {
           return this.drawTick(scaled_pos, tick.label)
