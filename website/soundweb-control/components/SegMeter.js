@@ -146,6 +146,8 @@ class SegMeter extends ControlElement {
 
     // Do this to prevent flicker while rendering
     output_ctx.clearRect(0, 0, w, h);
+    output_ctx.imageSmoothingEnabled = false;
+    output_ctx.mozImageSmoothingEnabled = false;
     output_ctx.drawImage(temp_canvas, 0, 0)
   }
 
@@ -161,6 +163,7 @@ class SegMeter extends ControlElement {
         height: h
       }}>
         <canvas ref={this.canvasRef} width={w} height={h} style={{
+          imageRendering: "pixelated"
         }} />
         <canvas ref={this.tempCanvasRef} width={w} height={h} style={{
           display: "none"

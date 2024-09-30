@@ -549,12 +549,18 @@ class GradMeter(ParameterControl):
             c.attribs["MidThreshhold"] = properties.find("MidThreshhold").text
             c.attribs["HighThreshhold"] = properties.find("HighThreshhold").text
             c.attribs["GradFraction"] = float(properties.find("GradFraction").text)
+            c.attribs["ValueFormat"] = properties.find("ValueFormat").text
             if c.attribs["MidThreshhold"] is None:
                 c.attribs["MidThreshhold"] = 0.5
             if c.attribs["HighThreshhold"] is None:
-                c.attribs["HighThreshhold"] = 0.75
+                c.attribs["HighThreshhold"] = 0.9
             if c.attribs["GradFraction"] is None:
                 c.attribs["GradFraction"] = 0.2
+            c.attribs["DrawPeak"] = properties.find("DrawPeak").text == "True"
+            c.attribs["PeakWidth"] = int(properties.find("PeakWidth").text)
+            c.attribs["PeakColor"] = properties.find("PeakColor").text
+            c.attribs["PeakDecayRate"] = int(properties.find("PeakDecayRate").text)
+            c.attribs["Optimized"] = properties.find("Optimized").text == "True"
         return c
 
 @dataclass
