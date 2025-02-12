@@ -2,9 +2,9 @@ REM Change directory to script directory
 cd /D "%~dp0"
 
 SET BASETAG=quphoria/hiqnet-websocket-proxy
-SET VERSION=v1.1.5
+SET VERSION=v1.1.6
 SET latest=1
-SET development=1
+@REM SET development=1
 
 SET tag="%BASETAG%:%VERSION%"
 SET latesttag=

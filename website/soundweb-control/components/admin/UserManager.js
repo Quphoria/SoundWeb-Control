@@ -39,7 +39,12 @@ function onTableChange(e, id, key, users, mutateUsers, hiddenTabs=[]) {
       break;
   }
   var new_users = users;
-  Object.assign(new_users[id], new_data);
+  for (var i = 0; i < new_users.length; i++) {
+    if (new_users[i].id == id) {
+      // Merge data
+      Object.assign(new_users[i], new_data);
+    }
+  }
   fetch(api_admin_users_url, {
     method: 'PATCH',
     headers: {
