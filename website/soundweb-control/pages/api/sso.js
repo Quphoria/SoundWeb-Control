@@ -16,8 +16,8 @@ function setCORSHeaders(req, res) {
 
     // This is technically unsafe as we aren't checking if it is a trusted proxy
     // However this just controls a log message so it is safe enough
-    if (req.headers.has("X-Forwarded-Host")) {
-      host = req.headers.get("X-Forwarded-Host");
+    if (req.headers["x-forwarded-host"] !== undefined) {
+      host = req.headers["x-forwarded-host"];
     }
 
     // Get the host part of the origin (Strip the https://)
