@@ -33,7 +33,7 @@ export default function Home() {
             ))
           }
           {
-            !(user?.apps_list) && (
+            !(user?.apps_list?.length) && (
               <i>No Apps</i>
             )
           }
