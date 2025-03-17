@@ -26,7 +26,7 @@ function setCORSHeaders(req, res) {
       origin_host = origin_host.slice(origin_host.indexOf("//")+2);
     }
 
-    if (origin_host !== host) console.log(`SSO CORS Origin Blocked: ${req.headers.origin} ${origin_host} ${host}`);
+    if (origin_host !== host) console.log(`SSO CORS Origin Blocked: ${req.headers.origin} (Host: ${host})`);
     return;
   };
 
