@@ -12,7 +12,21 @@ function setCORSHeaders(req, res) {
 
   if (!config.allowedSSOOrigins.includes(req.headers.origin)) {
     // Only bother if origin != host (browser doesn't needs cors headers if they match)
-    if (req.headers.origin !== req.headers.host) console.log(`SSO CORS Origin Blocked: ${req.headers.origin}`);
+    var host = req.headers.host;
+
+    // This is technically unsafe as we aren't checking if it is a trusted proxy
+    // However this just controls a log message so it is safe enough
+    if (req.headers.has("X-Forwarded-Host")) {
+      host = req.headers.get("X-Forwarded-Host");
+    }
+
+    // Get the host part of the origin (Strip the https://)
+    var origin_host = req.headers.origin;
+    if (origin_host.includes("//")) {
+      origin_host = origin_host.slice(origin_host.indexOf("//")+2);
+    }
+
+    if (origin_host !== host) console.log(`SSO CORS Origin Blocked: ${req.headers.origin}`);
     return;
   };
 
