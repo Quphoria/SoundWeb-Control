@@ -2,7 +2,7 @@ REM Change directory to script directory
 cd /D "%~dp0"
 
 SET BASETAG=quphoria/soundweb-control
-SET VERSION=v1.1.6
+SET VERSION=v1.1.7
 SET latest=1
 @REM SET development=1
 
