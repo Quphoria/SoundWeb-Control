@@ -126,7 +126,7 @@ const Layout = ({ children }) => {
           )
         }
         {
-          user?.apps_list?.length &&
+          !!user?.apps_list?.length &&
           (
             <Link href={apps_url}>
               <a>Apps</a>
