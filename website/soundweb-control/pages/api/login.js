@@ -1,5 +1,6 @@
 import { withSessionRoute } from "../../lib/withSession";
 import { userDatabase, sanitised } from "../../lib/userDatabase";
+import { getAppsList } from "./user";
 
 export default withSessionRoute(
   async function loginRoute(req, res) {
@@ -28,7 +29,10 @@ export default withSessionRoute(
         t: Date.now()
       };
       await req.session.save();
-      res.send({ ok: true, user: {isLoggedIn: true, ...sanitised(user)} });
+
+      const apps_list = getAppsList(user);
+
+      res.send({ ok: true, user: {isLoggedIn: true, apps_list, ...sanitised(user)} });
     } catch (error) {
       console.log(error);
       res.status(500).json({ error: true,  message: error.message });

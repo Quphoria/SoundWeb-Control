@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useMemo } from "react"
 import Link from "next/link"
 import { Global, css } from "@emotion/react"
 import { useEffect } from "react"
@@ -19,6 +19,10 @@ const Layout = ({ children }) => {
   
     return () => clearInterval(intervalId);
   }, []);
+
+  const has_apps = useMemo(() => {
+    return !!user?.apps_list?.length;
+  }, [user]);
   
   return (
     <React.Fragment>
@@ -126,7 +130,7 @@ const Layout = ({ children }) => {
           )
         }
         {
-          !!user?.apps_list?.length &&
+          has_apps &&
           (
             <Link href={apps_url}>
               <a>Apps</a>
