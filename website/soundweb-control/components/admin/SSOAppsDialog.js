@@ -51,7 +51,7 @@ function SSOAppsDialog(props) {
     
       <Modal.Body>
         <p><b>User: </b>{state.username}</p>
-        <BTable striped hover size="sm" variant="light">
+        <BTable striped hover size="sm" variant="light" className="align-middle">
           <thead>
             <tr>
               <th>App</th>

@@ -13,11 +13,11 @@ import AddUserDialog from "./AddUserDialog";
 import SSOAppsDialog from "./SSOAppsDialog";
 import { api_admin_users_url, api_admin_password_url } from "../../lib/siteUrls";
 
-function onTableChange(e, id, key, users, mutateUsers, hiddenTabs=[]) {
+function onTableChange(e, id, key, mutateUsers, hiddenTabs=[]) {
   const value = e.target.value.trim();
   const checked = e.target.checked;
 
-  const new_data = {};
+  var new_data = {};
   switch (key) {
     case "username":
       new_data[key] = value;
@@ -38,13 +38,6 @@ function onTableChange(e, id, key, users, mutateUsers, hiddenTabs=[]) {
       }
       break;
   }
-  var new_users = users;
-  for (var i = 0; i < new_users.length; i++) {
-    if (new_users[i].id == id) {
-      // Merge data
-      Object.assign(new_users[i], new_data);
-    }
-  }
   fetch(api_admin_users_url, {
     method: 'PATCH',
     headers: {
@@ -61,7 +54,7 @@ function formatDate(date) {
   return ["Unknown", "Never"].includes(date) ? date : new Date(date).toLocaleString()
 }
 
-function generateTableRow(user, current_user, users, mutateUsers, setDeleteModalState, setInfoModalState, setChangePasswordModalState, setSSOModalState) {
+function generateTableRow(user, current_user, mutateUsers, setDeleteModalState, setInfoModalState, setChangePasswordModalState, setSSOModalState) {
   var tab_buttons = [];
   for(var i = 0; i < tab_count; i++) {
     tab_buttons.push((
@@ -75,7 +68,7 @@ function generateTableRow(user, current_user, users, mutateUsers, setDeleteModal
           marginRight: "1.5em"
         }}
         disabled={user.admin}
-        onChange={(e) => onTableChange(e, user.id, "hiddenTabs", users, mutateUsers, user.hiddenTabs)}
+        onChange={(e) => onTableChange(e, user.id, "hiddenTabs", mutateUsers, user.hiddenTabs)}
       />
     ))
   }
@@ -88,7 +81,7 @@ function generateTableRow(user, current_user, users, mutateUsers, setDeleteModal
       <FormControl
         type="text"
         size="sm"
-        onChange={(e) => onTableChange(e, user.id, "username", users, mutateUsers)}
+        onChange={(e) => onTableChange(e, user.id, "username", mutateUsers)}
         defaultValue={user.username}
         readOnly={user.id === current_user.id}
       />
@@ -100,7 +93,7 @@ function generateTableRow(user, current_user, users, mutateUsers, setDeleteModal
         label={user.admin ? "Admin" : "User"}
         defaultChecked={user.admin}
         disabled={user.id === current_user.id}
-        onChange={(e) => onTableChange(e, user.id, "admin", users, mutateUsers)}
+        onChange={(e) => onTableChange(e, user.id, "admin", mutateUsers)}
       />
     </td>
     <td>
@@ -109,7 +102,7 @@ function generateTableRow(user, current_user, users, mutateUsers, setDeleteModal
         label="Disabled"
         defaultChecked={user.disabled}
         disabled={user.id === current_user.id}
-        onChange={(e) => onTableChange(e, user.id, "disabled", users, mutateUsers)}
+        onChange={(e) => onTableChange(e, user.id, "disabled", mutateUsers)}
       />
     </td>
     <td>
@@ -249,7 +242,7 @@ export default function UserManager({
           Add
         </Button>
       </div>
-      <BTable striped hover size="sm" variant="dark">
+      <BTable striped hover size="sm" variant="dark" className="align-middle">
         <thead>
           <tr>
             <th></th>
@@ -262,7 +255,7 @@ export default function UserManager({
           </tr>
         </thead>
         <tbody>
-          {users ? users.map(u => generateTableRow(u, user, users, mutateUsers, setDeleteModalState, setInfoModalState, setChangePasswordModalState, setSSOModalState)) :
+          {users ? users.map(u => generateTableRow(u, user, mutateUsers, setDeleteModalState, setInfoModalState, setChangePasswordModalState, setSSOModalState)) :
             (<tr><td colSpan={6} style={{textAlign: "center"}}>Loading...</td></tr>)}
         </tbody>
       </BTable>

@@ -6,7 +6,7 @@ import { useEffect } from "react"
 import { Nav, PageBody, Footer } from "../styles"
 import useUser from "../lib/useUser"
 import fetchJson from "../lib/fetchJson"
-import { home_url, panel_url, admin_url, login_url, api_logout_url, github_url, favicon_url } from "../lib/siteUrls"
+import { home_url, panel_url, admin_url, login_url, api_logout_url, github_url, favicon_url, apps_url } from "../lib/siteUrls"
 import Head from "next/head"
 
 const Layout = ({ children }) => {
@@ -122,6 +122,14 @@ const Layout = ({ children }) => {
           (
             <Link href={panel_url}>
               <a>Panel</a>
+            </Link>
+          )
+        }
+        {
+          user?.apps_list &&
+          (
+            <Link href={apps_url}>
+              <a>Apps</a>
             </Link>
           )
         }

@@ -3,6 +3,7 @@ export const github_url = "https://github.com/Quphoria";
 
 export const home_url = "/";
 export const panel_url = "/panel";
+export const apps_url = "/apps";
 export const admin_url = "/admin";
 export const login_url = "/login";
 export const favicon_url = "/favicon.ico";

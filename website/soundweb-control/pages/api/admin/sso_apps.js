@@ -43,6 +43,15 @@ export default withSessionRoute(
             console.log(`${current_user.username}#${current_user.id} Deleted SSO App ${sso_app_id}`);
             res.send("Ok");
             break;
+          case "listing":
+            var listing_changes = {};
+            if (typeof(req.body.listed) === "boolean") listing_changes.listed = req.body.listed;
+            if (typeof(req.body.listName) === "string") listing_changes.listName = req.body.listName;
+            if (typeof(req.body.listUrl) === "string") listing_changes.listUrl = req.body.listUrl;
+            ssoAppDatabase.update(sso_app_id, listing_changes);
+            console.log(`${current_user.username}#${current_user.id} Modifed SSO App Listing ${JSON.stringify(listing_changes)}`);
+            res.send("Ok");
+            break;
           default:
             res.send(`Unknown action ${action}`);
             return;

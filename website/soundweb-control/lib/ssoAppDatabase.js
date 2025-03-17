@@ -22,10 +22,16 @@ function migrateDatabase() {
     // ssoApp.id: unique string
     // Optional:
     // ssoApp.disabled: boolean
+    // ssoApp.listed: boolean   - Display the app in the Apps page
+    // ssoApp.listName: string  - The name for the app in the Apps page (Defaults to the app ID)
+    // ssoApp.listUrl: string   - The url of the app for the Apps page (used for the links there only)
 
-    if (typeof(ssoApp) !== 'object') break;
-    if (typeof(ssoApp.id) !== "string" || ssoApp.id == "" || new_ssoApps.find(x => x.id === ssoApp.id)) break;
+    if (typeof(ssoApp) !== 'object') continue;
+    if (typeof(ssoApp.id) !== "string" || ssoApp.id == "" || new_ssoApps.find(x => x.id === ssoApp.id)) continue;
     if (typeof(ssoApp.disabled) !== "boolean") { ssoApp.disabled = false; changed = true; }
+    if (typeof(ssoApp.listed) !== "boolean") { ssoApp.listed = false; changed = true; }
+    if (typeof(ssoApp.listName) !== "string") { ssoApp.listName = ssoApp.id; changed = true; }
+    if (typeof(ssoApp.listUrl) !== "string") { ssoApp.listUrl = ""; changed = true; }
 
     new_ssoApps.push(ssoApp);
   }
@@ -65,7 +71,10 @@ function create(sso_app_id) {
 
   const ssoApp = {
     id: sso_app_id,
-    disabled: false
+    disabled: false,
+    listed: false,
+    listName: sso_app_id,
+    listUrl: "",
   };
 
   if (ssoApps.find((a) => a.id == ssoApp.id)) {

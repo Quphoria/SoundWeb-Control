@@ -61,7 +61,8 @@ export default withSessionRoute(
 
     if (sso_app_id) {
       ssoAppDatabase.load();
-      if (ssoAppDatabase.find((a) => (a.id === sso_app_id)) === undefined) {
+      const app = ssoAppDatabase.find((a) => (a.id === sso_app_id));
+      if (app === undefined) {
         if (db_user.admin) {
           // Only admins can add a new app
           ssoAppDatabase.create(sso_app_id);
@@ -76,7 +77,7 @@ export default withSessionRoute(
           });
         }
         return;
-      } else if (!db_user.enabledSSOApps.includes(sso_app_id)) {
+      } else if (!db_user.enabledSSOApps.includes(sso_app_id) || app.disabled) {
         res.send({
           status: "redirect",
           url: urlBuilder(sso_access_denied_url, {callback: JSON.stringify(logout_callback)})
